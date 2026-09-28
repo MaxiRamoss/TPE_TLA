@@ -65,7 +65,10 @@ InputBuffer * createInputBuffer(LexicalAnalyzer * lexicalAnalyzer, const char * 
 
 LexicalAnalyzer * createLexicalAnalyzer() {
 	LexicalAnalyzer * lexicalAnalyzer = (LexicalAnalyzer *) calloc(1, sizeof(LexicalAnalyzer));
-	lexicalAnalyzer->location = calloc(1, sizeof(YYLTYPE));
+	YYLTYPE * location = (YYLTYPE *) calloc(1, sizeof(YYLTYPE));
+	location->first_line = 1;
+	location->last_line = 1;
+	lexicalAnalyzer->location = location;
 	lexicalAnalyzer->logger = createLogger("LexicalAnalyzer");
 	yylex_init(&lexicalAnalyzer->scanner);
 	lexicalAnalyzer->parser = yypstate_new();
@@ -184,9 +187,14 @@ void pushInputBuffer(InputBuffer * inputBuffer) {
 }
 
 CompilationStatus pushToken(LexicalAnalyzer * lexicalAnalyzer, Token * token) {
+	YYLTYPE * location = (YYLTYPE *) lexicalAnalyzer->location;
+	if (token->label != YYEOF) {
+		location->first_line = token->line;
+		location->last_line = token->line;
+	}
 	return (CompilationStatus) yypush_parse(
 		(yypstate *) lexicalAnalyzer->parser,
 		token->label,
 		token->semanticValue,
-		(YYLTYPE *) lexicalAnalyzer->location);
+		location);
 }

@@ -66,11 +66,17 @@ void destroyDeclaration(Declaration * declaration) {
 			case CONSTANT_DECLARATION:
 				destroyConstantDeclaration(declaration->constantDeclaration);
 				break;
+			case FLOW_DECLARATION:
+				destroyFlowDeclaration(declaration->flowDeclaration);
+				break;
 			case INTERSECTION_DECLARATION:
 				destroyIntersectionDeclaration(declaration->intersectionDeclaration);
 				break;
 			case ROAD_DECLARATION:
 				destroyRoadDeclaration(declaration->roadDeclaration);
+				break;
+			case ROUTE_DECLARATION:
+				destroyRouteDeclaration(declaration->routeDeclaration);
 				break;
 			default:
 				logError(_logger, "The specified declaration type is unknown: %d", declaration->type);
@@ -161,6 +167,20 @@ void destroyFactor(Factor * factor) {
 	}
 }
 
+void destroyFlowDeclaration(FlowDeclaration * flowDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (flowDeclaration != NULL) {
+		destroyReference(flowDeclaration->reference);
+		destroyReference(flowDeclaration->route);
+		destroyExpression(flowDeclaration->label);
+		destroyExpression(flowDeclaration->amount);
+		destroyExpression(flowDeclaration->period);
+		destroyExpression(flowDeclaration->from);
+		destroyExpression(flowDeclaration->to);
+		free(flowDeclaration);
+	}
+}
+
 void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclaration) {
 	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
 	if (intersectionDeclaration != NULL) {
@@ -168,6 +188,19 @@ void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclar
 		destroyPosition(intersectionDeclaration->position);
 		destroyExpression(intersectionDeclaration->label);
 		free(intersectionDeclaration);
+	}
+}
+
+void destroyPath(Path * path) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (path != NULL) {
+		Waypoint * waypoint = path->first;
+		while (waypoint != NULL) {
+			Waypoint * next = waypoint->next;
+			destroyWaypoint(waypoint);
+			waypoint = next;
+		}
+		free(path);
 	}
 }
 
@@ -229,6 +262,16 @@ void destroyRoadDeclaration(RoadDeclaration * roadDeclaration) {
 	}
 }
 
+void destroyRouteDeclaration(RouteDeclaration * routeDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (routeDeclaration != NULL) {
+		destroyReference(routeDeclaration->reference);
+		destroyPath(routeDeclaration->path);
+		destroyExpression(routeDeclaration->label);
+		free(routeDeclaration);
+	}
+}
+
 void destroySimulation(Simulation * simulation) {
 	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
 	if (simulation != NULL) {
@@ -275,5 +318,13 @@ void destroyStringParts(StringParts * stringParts) {
 			stringPart = next;
 		}
 		free(stringParts);
+	}
+}
+
+void destroyWaypoint(Waypoint * waypoint) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (waypoint != NULL) {
+		destroyReference(waypoint->reference);
+		free(waypoint);
 	}
 }

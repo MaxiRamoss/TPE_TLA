@@ -1,18 +1,32 @@
 %{
 
+#include "../../support/logging/Logger.h"
 #include "../../support/type/TokenLabel.h"
 #include "AbstractSyntaxTree.h"
 #include "BisonActions.h"
+#include <string.h>
 
 /**
- * The error reporting function for Bison parser.
- *
- * @todo Add location to the grammar and "pushToken" API function.
+ * The error reporting function for Bison parser. It logs the message of Bison,
+ * without its "syntax error, " prefix, along with the line of the token that
+ * provoked the error ("pushToken" sets the location of each token). The
+ * lexical-analyzer pushes an EXCEPTION only to halt the parser (so it releases
+ * its stack) after reporting a lexical error, which is not reported again.
  *
  * @see https://www.gnu.org/software/bison/manual/html_node/Error-Reporting-Function.html
  * @see https://www.gnu.org/software/bison/manual/html_node/Tracking-Locations.html
  */
-void yyerror(const YYLTYPE * location, const char * message) {}
+void yyerror(const YYLTYPE * location, const char * message) {
+	const char * prefix = "syntax error, ";
+	if (strncmp(message, prefix, strlen(prefix)) == 0) {
+		message += strlen(prefix);
+	}
+	if (strstr(message, "unexpected EXCEPTION") == NULL) {
+		Logger * logger = createLogger("SyntacticAnalyzer");
+		logError(logger, "Syntax error at line %d: %s", location->first_line, message);
+		destroyLogger(logger);
+	}
+}
 
 %}
 
@@ -41,16 +55,28 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 	Direction direction;
 	Expression * expression;
 	Factor * factor;
+	FlowDeclaration * flowDeclaration;
 	FundamentalType fundamentalType;
 	IntersectionDeclaration * intersectionDeclaration;
+	Path * path;
 	Position * position;
 	Program * program;
 	Reference * reference;
 	RoadDeclaration * roadDeclaration;
+	RouteDeclaration * routeDeclaration;
 	Simulation * simulation;
 	StringLiteral * stringLiteral;
 	StringParts * stringParts;
 	Unit unit;
+
+	/**
+	 * The bounds of the window of a flow (both NULL if there is no window).
+	 * They are not a node of the tree: the flow declaration stores them.
+	 */
+	struct {
+		Expression * from;
+		Expression * to;
+	} window;
 }
 
 /**
@@ -69,13 +95,17 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %destructor { destroyDeclarations($$); } <declarations>
 %destructor { destroyExpression($$); } <expression>
 %destructor { destroyFactor($$); } <factor>
+%destructor { destroyFlowDeclaration($$); } <flowDeclaration>
 %destructor { destroyIntersectionDeclaration($$); } <intersectionDeclaration>
+%destructor { destroyPath($$); } <path>
 %destructor { destroyPosition($$); } <position>
 %destructor { destroyReference($$); } <reference>
 %destructor { destroyRoadDeclaration($$); } <roadDeclaration>
+%destructor { destroyRouteDeclaration($$); } <routeDeclaration>
 %destructor { destroySimulation($$); } <simulation>
 %destructor { destroyStringLiteral($$); } <stringLiteral>
 %destructor { destroyStringParts($$); } <stringParts>
+%destructor { destroyExpression($$.from); destroyExpression($$.to); } <window>
 
 /** Terminals with a semantic value. */
 %token <boolean> BOOLEAN "boolean literal"
@@ -197,16 +227,20 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %type <direction> direction
 %type <expression> expression labelOpt lengthOpt limitOpt
 %type <factor> factor
+%type <flowDeclaration> flowDeclaration
 %type <fundamentalType> fundamentalType
 %type <intersectionDeclaration> intersectionDeclaration
+%type <path> path
 %type <position> position
 %type <program> program
 %type <reference> reference
 %type <roadDeclaration> roadDeclaration
+%type <routeDeclaration> routeDeclaration
 %type <simulation> simulation
 %type <stringLiteral> string
 %type <stringParts> stringParts
 %type <unit> unit
+%type <window> windowOpt
 
 /**
  * Precedence and associativity.
@@ -240,6 +274,8 @@ declarations: %empty											{ $$ = EmptyDeclarationsSemanticAction(); }
 declaration: constantDeclaration								{ $$ = ConstantDeclarationDeclarationSemanticAction($1); }
 	| intersectionDeclaration									{ $$ = IntersectionDeclarationDeclarationSemanticAction($1); }
 	| roadDeclaration											{ $$ = RoadDeclarationDeclarationSemanticAction($1); }
+	| routeDeclaration											{ $$ = RouteDeclarationDeclarationSemanticAction($1); }
+	| flowDeclaration											{ $$ = FlowDeclarationDeclarationSemanticAction($1); }
 	;
 
 reference: ID													{ $$ = IdentifierReferenceSemanticAction($1); }
@@ -283,6 +319,20 @@ lengthOpt: %empty												{ $$ = NULL; }
 
 limitOpt: %empty												{ $$ = NULL; }
 	| LIMIT expression											{ $$ = $2; }
+	;
+
+routeDeclaration: ROUTE reference EQUAL path labelOpt			{ $$ = RouteDeclarationSemanticAction($2, $4, $5); }
+	;
+
+path: reference ARROW reference									{ $$ = AppendWaypointSemanticAction(AppendWaypointSemanticAction(EmptyPathSemanticAction(), $1), $3); }
+	| path ARROW reference										{ $$ = AppendWaypointSemanticAction($1, $3); }
+	;
+
+flowDeclaration: FLOW reference ALONG reference labelOpt OPEN_BRACE SPAWN expression EVERY expression windowOpt CLOSE_BRACE	{ $$ = FlowDeclarationSemanticAction($2, $4, $5, $8, $10, $11.from, $11.to); }
+	;
+
+windowOpt: %empty												{ $$.from = NULL; $$.to = NULL; }
+	| FROM expression TO expression								{ $$.from = $2; $$.to = $4; }
 	;
 
 expression: expression[left] OR expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, DISJUNCTION); }

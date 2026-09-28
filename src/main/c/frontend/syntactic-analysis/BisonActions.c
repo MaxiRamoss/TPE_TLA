@@ -101,6 +101,20 @@ StringParts * AppendInterpolationSemanticAction(StringParts * stringParts, Expre
 	return stringParts;
 }
 
+Path * AppendWaypointSemanticAction(Path * path, Reference * reference) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Waypoint * waypoint = calloc(1, sizeof(Waypoint));
+	waypoint->reference = reference;
+	if (path->last == NULL) {
+		path->first = waypoint;
+	}
+	else {
+		path->last->next = waypoint;
+	}
+	path->last = waypoint;
+	return path;
+}
+
 Expression * BinaryExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Expression * expression = calloc(1, sizeof(Expression));
@@ -161,6 +175,11 @@ Declarations * EmptyDeclarationsSemanticAction() {
 	return calloc(1, sizeof(Declarations));
 }
 
+Path * EmptyPathSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(Path));
+}
+
 StringParts * EmptyStringPartsSemanticAction() {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	return calloc(1, sizeof(StringParts));
@@ -180,6 +199,27 @@ Expression * FactorExpressionSemanticAction(Factor * factor) {
 	expression->factor = factor;
 	expression->type = FACTOR;
 	return expression;
+}
+
+Declaration * FlowDeclarationDeclarationSemanticAction(FlowDeclaration * flowDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->flowDeclaration = flowDeclaration;
+	declaration->type = FLOW_DECLARATION;
+	return declaration;
+}
+
+FlowDeclaration * FlowDeclarationSemanticAction(Reference * reference, Reference * route, Expression * label, Expression * amount, Expression * period, Expression * from, Expression * to) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	FlowDeclaration * flowDeclaration = calloc(1, sizeof(FlowDeclaration));
+	flowDeclaration->reference = reference;
+	flowDeclaration->route = route;
+	flowDeclaration->label = label;
+	flowDeclaration->amount = amount;
+	flowDeclaration->period = period;
+	flowDeclaration->from = from;
+	flowDeclaration->to = to;
+	return flowDeclaration;
 }
 
 Reference * IdentifierReferenceSemanticAction(char * identifier) {
@@ -287,6 +327,23 @@ RoadDeclaration * RoadDeclarationSemanticAction(Reference * reference, Reference
 	roadDeclaration->limit = limit;
 	roadDeclaration->label = label;
 	return roadDeclaration;
+}
+
+Declaration * RouteDeclarationDeclarationSemanticAction(RouteDeclaration * routeDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->routeDeclaration = routeDeclaration;
+	declaration->type = ROUTE_DECLARATION;
+	return declaration;
+}
+
+RouteDeclaration * RouteDeclarationSemanticAction(Reference * reference, Path * path, Expression * label) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	RouteDeclaration * routeDeclaration = calloc(1, sizeof(RouteDeclaration));
+	routeDeclaration->reference = reference;
+	routeDeclaration->path = path;
+	routeDeclaration->label = label;
+	return routeDeclaration;
 }
 
 Simulation * SimulationSemanticAction(char * identifier, Expression * label, Expression * duration) {

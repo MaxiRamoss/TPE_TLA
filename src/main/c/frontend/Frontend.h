@@ -88,7 +88,8 @@ bool popInputBuffer(LexicalAnalyzer * lexicalAnalyzer);
 void pushInputBuffer(InputBuffer * inputBuffer);
 
 /**
- * Pushes a new token to the parser input stream.
+ * Pushes a new token to the parser input stream, along with its line. The end
+ * of the input keeps the line of the last token, where the program ends.
  */
 CompilationStatus pushToken(LexicalAnalyzer * lexicalAnalyzer, Token * token);
 

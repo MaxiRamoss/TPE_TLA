@@ -32,16 +32,20 @@ typedef struct Declaration Declaration;
 typedef struct Declarations Declarations;
 typedef struct Expression Expression;
 typedef struct Factor Factor;
+typedef struct FlowDeclaration FlowDeclaration;
 typedef struct IntersectionDeclaration IntersectionDeclaration;
+typedef struct Path Path;
 typedef struct Position Position;
 typedef struct Program Program;
 typedef struct Quantity Quantity;
 typedef struct Reference Reference;
 typedef struct RoadDeclaration RoadDeclaration;
+typedef struct RouteDeclaration RouteDeclaration;
 typedef struct Simulation Simulation;
 typedef struct StringLiteral StringLiteral;
 typedef struct StringPart StringPart;
 typedef struct StringParts StringParts;
+typedef struct Waypoint Waypoint;
 
 /**
  * Node types for the Abstract Syntax Tree (AST). The enumerated values must
@@ -51,8 +55,10 @@ typedef struct StringParts StringParts;
 
 enum DeclarationType {
 	CONSTANT_DECLARATION,
+	FLOW_DECLARATION,
 	INTERSECTION_DECLARATION,
-	ROAD_DECLARATION
+	ROAD_DECLARATION,
+	ROUTE_DECLARATION
 };
 
 enum Direction {
@@ -143,8 +149,10 @@ struct Declarations {
 struct Declaration {
 	union {
 		ConstantDeclaration * constantDeclaration;
+		FlowDeclaration * flowDeclaration;
 		IntersectionDeclaration * intersectionDeclaration;
 		RoadDeclaration * roadDeclaration;
+		RouteDeclaration * routeDeclaration;
 	};
 	DeclarationType type;
 	Declaration * next;
@@ -189,6 +197,41 @@ struct RoadDeclaration {
 	Expression * limit;
 	/** NULL if the road has no label. */
 	Expression * label;
+};
+
+struct RouteDeclaration {
+	Reference * reference;
+	Path * path;
+	/** NULL if the route has no label. */
+	Expression * label;
+};
+
+/**
+ * The intersections of a route, in order of appearance. The grammar ensures
+ * that there are at least two.
+ */
+struct Path {
+	Waypoint * first;
+	Waypoint * last;
+};
+
+struct Waypoint {
+	Reference * reference;
+	Waypoint * next;
+};
+
+struct FlowDeclaration {
+	Reference * reference;
+	Reference * route;
+	/** NULL if the flow has no label. */
+	Expression * label;
+	/** The number of vehicles spawned in each period. */
+	Expression * amount;
+	Expression * period;
+	/** NULL if the flow has no window (i.e., it lasts the entire simulation). */
+	Expression * from;
+	/** NULL if the flow has no window (i.e., it lasts the entire simulation). */
+	Expression * to;
 };
 
 struct Reference {
@@ -282,15 +325,19 @@ void destroyDeclaration(Declaration * declaration);
 void destroyDeclarations(Declarations * declarations);
 void destroyExpression(Expression * expression);
 void destroyFactor(Factor * factor);
+void destroyFlowDeclaration(FlowDeclaration * flowDeclaration);
 void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclaration);
+void destroyPath(Path * path);
 void destroyPosition(Position * position);
 void destroyProgram(Program * program);
 void destroyQuantity(Quantity * quantity);
 void destroyReference(Reference * reference);
 void destroyRoadDeclaration(RoadDeclaration * roadDeclaration);
+void destroyRouteDeclaration(RouteDeclaration * routeDeclaration);
 void destroySimulation(Simulation * simulation);
 void destroyStringLiteral(StringLiteral * stringLiteral);
 void destroyStringPart(StringPart * stringPart);
 void destroyStringParts(StringParts * stringParts);
+void destroyWaypoint(Waypoint * waypoint);
 
 #endif
