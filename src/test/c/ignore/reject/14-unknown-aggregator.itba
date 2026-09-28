@@ -1,0 +1,3 @@
+// median no es un agregador: los agregadores son count, sum, average, minimum y maximum.
+simulation S { duration 1 h }
+metric M = median(elapsed) on tick

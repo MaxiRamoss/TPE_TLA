@@ -1,0 +1,3 @@
+// trip solo existe en las métricas on arrival, y M se evalúa on tick.
+simulation S { duration 1 h }
+metric M = average(trip.travel_time) on tick

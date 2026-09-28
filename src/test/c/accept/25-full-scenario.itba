@@ -1,0 +1,38 @@
+// Corredor sobre Córdoba con una transversal por Callao.
+simulation Centro { duration 30 min }
+
+intersection CórdobaPueyrredón at (0 m, 0 m)
+intersection CórdobaCallao at 370 m east of CórdobaPueyrredón label "Córdoba y Callao"
+intersection CórdobaMontevideo at 370 m east of CórdobaCallao
+intersection CallaoRivadavia at 250 m south of CórdobaCallao
+
+road CórdobaOeste from CórdobaPueyrredón to CórdobaCallao
+road CórdobaEste from CórdobaCallao to CórdobaMontevideo limit 50 km/h
+road Callao from CallaoRivadavia to CórdobaCallao length 260 m
+
+duration VerdeBase = 30 s
+
+policy Adaptativa(road principal, integer umbral) {
+    if queue(principal) > umbral {
+        extend principal by 10 s
+        log "Extendida {principal} a los {elapsed}"
+    } else {
+        keep
+    }
+}
+
+light Sem1 at CórdobaCallao {
+    phase green for CórdobaOeste during VerdeBase
+    phase green for Callao during VerdeBase - 5 s
+    apply Adaptativa(CórdobaOeste, 15)
+}
+
+route Corredor = CórdobaPueyrredón -> CórdobaCallao -> CórdobaMontevideo
+route Transversal = CallaoRivadavia -> CórdobaCallao -> CórdobaMontevideo
+
+flow HoraPico along Corredor { spawn 2 every 10 s from 0 min to 15 min }
+flow Continuo along Transversal { spawn 1 every 8 s }
+
+metric Completados = count() on arrival
+metric ViajePromedio = average(trip.travel_time) on arrival
+metric PicoCórdobaOeste = maximum(occupancy(CórdobaOeste)) on tick

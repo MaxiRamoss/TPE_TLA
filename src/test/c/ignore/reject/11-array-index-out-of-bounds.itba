@@ -1,0 +1,8 @@
+// Rivadavia[5] no está declarado: los índices declarados de Rivadavia van de 0 a 4.
+simulation S { duration 1 h }
+intersection Rivadavia[0] at (0 m, 0 m)
+for i in 1 .. 4 {
+	intersection Rivadavia[i] at 100 m east of Rivadavia[i - 1]
+	road TramoRivadavia[i] from Rivadavia[i - 1] to Rivadavia[i]
+}
+road TramoRivadavia[5] from Rivadavia[4] to Rivadavia[5]

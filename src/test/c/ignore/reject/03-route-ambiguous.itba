@@ -1,0 +1,8 @@
+// El tramo A -> B de la ruta R es ambiguo: hay dos calles de A a B (AB1 y AB2).
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road AB1 from A to B
+road AB2 from A to B
+route R = A -> B

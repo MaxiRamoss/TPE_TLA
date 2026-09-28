@@ -1,0 +1,6 @@
+// La calle AD termina en D, una intersección que no está declarada.
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road AD from A to D

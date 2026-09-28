@@ -1,0 +1,6 @@
+// La calle AB tiene longitud 0 m.
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road AB from A to B length 0 m
