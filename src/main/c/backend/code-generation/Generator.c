@@ -21,5 +21,6 @@ ModuleDestructor initializeGeneratorModule() {
 /** PUBLIC FUNCTIONS */
 
 void executeGenerator(CompilerState * compilerState) {
+	(void) compilerState;
 	logDebugging(_logger, "No output is generated.");
 }

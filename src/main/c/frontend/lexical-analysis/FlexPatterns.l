@@ -18,6 +18,7 @@ extern CompilationStatus ArithmeticOperatorLexemeAction(TokenLabel label);
 extern CompilationStatus BeginInterpolationLexemeAction(FlexContext context);
 extern CompilationStatus BeginStringLexemeAction(FlexContext context);
 extern CompilationStatus BooleanLexemeAction(const bool value);
+extern CompilationStatus ByteOrderMarkLexemeAction();
 extern CompilationStatus DelimiterLexemeAction(TokenLabel label);
 extern CompilationStatus EndInterpolationLexemeAction();
 extern CompilationStatus EndStringLexemeAction();
@@ -39,6 +40,17 @@ extern CompilationStatus UnterminatedStringLexemeAction();
 %}
 
 /**
+ * The rules never use "input", "unput" nor "yy_top_state", so Flex doesn't
+ * generate them (otherwise, GCC warns that they are unused). The rest of the
+ * options are in "flex.sh".
+ *
+ * @see https://westes.github.io/flex/manual/Scanner-Options.html
+ */
+%option noinput
+%option nounput
+%option noyy_top_state
+
+/**
  * Flex contexts (a.k.a. start conditions). Flex numbers them in order of
  * declaration (INITIAL is 0), and "_toConstructString" and "_toContextString"
  * in "FlexActions.c" depend on that order.
@@ -53,16 +65,22 @@ extern CompilationStatus UnterminatedStringLexemeAction();
  * Reusable patterns. A letter is either ASCII or a latin letter with
  * diacritics in the range U+00C0-U+00FF, except U+00D7 (×) and U+00F7 (÷),
  * encoded in UTF-8. A multibyte character is any non-ASCII character encoded
- * in UTF-8, so an unknown character is reported whole, not only its first
- * byte.
+ * in valid UTF-8 (without overlong forms, surrogates or code points above
+ * U+10FFFF), so an unknown character is reported whole, not only its first
+ * byte, and any other byte is reported as invalid.
  *
  * @see https://westes.github.io/flex/manual/Matching.html
  * @see https://westes.github.io/flex/manual/Patterns.html
+ * @see https://www.rfc-editor.org/rfc/rfc3629#section-4
  */
 digit				[0-9]
 letter				[A-Za-z]|\xC3[\x80-\x96\x98-\xB6\xB8-\xBF]
 identifier			{letter}({letter}|{digit}|_)*
-multibyteCharacter	[\xC2-\xDF][\x80-\xBF]|[\xE0-\xEF][\x80-\xBF]{2}|[\xF0-\xF4][\x80-\xBF]{3}
+continuationByte	[\x80-\xBF]
+twoByteCharacter	[\xC2-\xDF]{continuationByte}
+threeByteCharacter	\xE0[\xA0-\xBF]{continuationByte}|[\xE1-\xEC\xEE\xEF]{continuationByte}{2}|\xED[\x80-\x9F]{continuationByte}
+fourByteCharacter	\xF0[\x90-\xBF]{continuationByte}{2}|[\xF1-\xF3]{continuationByte}{3}|\xF4[\x80-\x8F]{continuationByte}{2}
+multibyteCharacter	{twoByteCharacter}|{threeByteCharacter}|{fourByteCharacter}
 whitespace			[[:space:]]+
 
 %%
@@ -74,6 +92,8 @@ whitespace			[[:space:]]+
  */
 
 %}
+
+^\xEF\xBB\xBF						{ return ByteOrderMarkLexemeAction(); }
 
 "/*"								{ return EnterMultilineCommentLexemeAction(MULTILINE_COMMENT); }
 <MULTILINE_COMMENT>"*/"				{ return LeaveMultilineCommentLexemeAction(); }

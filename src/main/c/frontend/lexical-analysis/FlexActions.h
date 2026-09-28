@@ -11,7 +11,6 @@
 #include "../../support/type/Token.h"
 #include "../../support/type/TokenLabel.h"
 #include "../Frontend.h"
-#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>

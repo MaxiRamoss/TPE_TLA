@@ -36,16 +36,23 @@ ModuleDestructor initializeFlexActionsModule(LexicalAnalyzer * lexicalAnalyzer) 
 /* PRIVATE FUNCTIONS */
 
 static void _enterContext(const FlexContext context);
+static bool _isInvisibleCodePoint(const unsigned int codePoint);
 static void _leaveContext();
 static void _logTokenAction(const char * actionName, Token * token);
 static CompilationStatus _pushTokenAction(const char * actionName, Token * token);
 static CompilationStatus _throw();
 static CompilationStatus _throwLexicalError(const char * actionName, const char * message);
 static CompilationStatus _throwLexicalErrorAtLine(const unsigned int line, const char * message);
-static char * _toCharacterString(const char * lexeme);
+static char * _toCharacterString(const Token * token);
+static unsigned int _toCodePoint(const Token * token);
 static const char * _toConstructString(const FlexContext context);
 static const char * _toContextString(const FlexContext context);
 static char * _unescapeStringFragment(const char * lexeme);
+
+/* PUBLIC FUNCTIONS THAT OTHER ACTIONS REUSE */
+
+CompilationStatus IgnoredLexemeAction();
+CompilationStatus UnknownLexemeAction();
 
 /**
  * Enters a Flex context, and records the line where it begins.
@@ -164,19 +171,95 @@ static CompilationStatus _throwLexicalErrorAtLine(const unsigned int line, const
 }
 
 /**
- * Creates a new string (using heap-memory) that shows an unknown lexeme in an
- * error message. A single byte that is not a printable ASCII character (i.e.,
- * a control character or a byte of an invalid UTF-8 sequence) is shown by its
- * hexadecimal code.
+ * Determines if a code point is invisible or not printable on its own: a
+ * control, a white-space, a combining diacritical mark, a default-ignorable
+ * code point (e.g., the zero-width space or the byte order mark), a
+ * private-use character or a non-character. The ranges are inclusive, and
+ * sorted.
+ *
+ * @see https://www.unicode.org/reports/tr44/#Default_Ignorable_Code_Point
+ * @see https://www.unicode.org/reports/tr44/#White_Space
  */
-static char * _toCharacterString(const char * lexeme) {
-	const unsigned char byte = lexeme[0];
-	if (lexeme[1] == '\0' && !isprint(byte)) {
-		char * string = calloc(5, sizeof(char));
-		snprintf(string, 5, "\\x%02X", byte);
-		return string;
+static bool _isInvisibleCodePoint(const unsigned int codePoint) {
+	static const unsigned int ranges[][2] = {
+		{ 0x0000, 0x0020 },		// C0 controls and space.
+		{ 0x007F, 0x00A0 },		// Delete, C1 controls and no-break space.
+		{ 0x00AD, 0x00AD },		// Soft hyphen.
+		{ 0x0300, 0x036F },		// Combining diacritical marks (e.g., an accent in NFD).
+		{ 0x061C, 0x061C },		// Arabic letter mark.
+		{ 0x115F, 0x1160 },		// Hangul fillers.
+		{ 0x1680, 0x1680 },		// Ogham space mark.
+		{ 0x17B4, 0x17B5 },		// Khmer inherent vowels.
+		{ 0x180B, 0x180F },		// Mongolian variation selectors and vowel separator.
+		{ 0x2000, 0x200F },		// Spaces, zero-width characters and directional marks.
+		{ 0x2028, 0x202F },		// Line and paragraph separators, directional formatting and narrow no-break space.
+		{ 0x205F, 0x206F },		// Medium mathematical space, word joiner, invisible operators and directional isolates.
+		{ 0x3000, 0x3000 },		// Ideographic space.
+		{ 0x3164, 0x3164 },		// Hangul filler.
+		{ 0xE000, 0xF8FF },		// Private use area.
+		{ 0xFDD0, 0xFDEF },		// Non-characters.
+		{ 0xFE00, 0xFE0F },		// Variation selectors.
+		{ 0xFEFF, 0xFEFF },		// Zero-width no-break space (i.e., byte order mark).
+		{ 0xFFA0, 0xFFA0 },		// Halfwidth hangul filler.
+		{ 0xFFF0, 0xFFF8 },		// Unassigned specials.
+		{ 0x1BCA0, 0x1BCA3 },	// Shorthand format controls.
+		{ 0x1D173, 0x1D17A },	// Musical symbol format controls.
+		{ 0xE0000, 0xE0FFF },	// Tags and variation selectors supplement.
+		{ 0xF0000, 0x10FFFF }	// Supplementary private use areas.
+	};
+	if ((codePoint & 0xFFFE) == 0xFFFE) {
+		// The last two code points of every plane are non-characters.
+		return true;
 	}
-	return strdup(lexeme);
+	for (unsigned int k = 0; k < sizeof(ranges) / sizeof(ranges[0]); ++k) {
+		if (codePoint < ranges[k][0]) {
+			return false;
+		}
+		if (codePoint <= ranges[k][1]) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Decodes the code point of a lexeme that is a single character in valid
+ * UTF-8 (see "multibyteCharacter" in "FlexPatterns.l").
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc3629#section-3
+ */
+static unsigned int _toCodePoint(const Token * token) {
+	const unsigned char * bytes = (const unsigned char *) token->lexeme;
+	if (token->length == 1) {
+		return bytes[0];
+	}
+	unsigned int codePoint = bytes[0] & (0xFF >> (1 + token->length));
+	for (unsigned int k = 1; k < token->length; ++k) {
+		codePoint = (codePoint << 6) | (bytes[k] & 0x3F);
+	}
+	return codePoint;
+}
+
+/**
+ * Creates a new string (using heap-memory) that shows an unknown lexeme in an
+ * error message. The lexeme is either a character in valid UTF-8, or a single
+ * byte that is not. A visible character is shown between quotes; an invisible
+ * or non-printable character, by its code point (e.g., U+FEFF); and an invalid
+ * byte, by its hexadecimal code (e.g., \x80).
+ */
+static char * _toCharacterString(const Token * token) {
+	char string[16];
+	const unsigned char byte = token->lexeme[0];
+	if (token->length == 1 && 0x80 <= byte) {
+		snprintf(string, sizeof(string), "\\x%02X", byte);
+		return strdup(string);
+	}
+	const unsigned int codePoint = _toCodePoint(token);
+	if (_isInvisibleCodePoint(codePoint)) {
+		snprintf(string, sizeof(string), "U+%04X", codePoint);
+		return strdup(string);
+	}
+	return concatenate(3, "'", token->lexeme, "'");
 }
 
 /**
@@ -218,6 +301,18 @@ CompilationStatus BooleanLexemeAction(const bool value) {
 	Token * token = createToken(_lexicalAnalyzer, BOOLEAN);
 	token->semanticValue->boolean = value;
 	return _pushTokenAction(__FUNCTION__, token);
+}
+
+/**
+ * The byte order mark is ignored only at the beginning of the input. Its rule
+ * only matches at the beginning of a line, so it's the beginning of the input
+ * if it's the first line; anywhere else, it's an unknown character.
+ */
+CompilationStatus ByteOrderMarkLexemeAction() {
+	if (currentLexicalAnalyzerLine(_lexicalAnalyzer) == 1) {
+		return IgnoredLexemeAction();
+	}
+	return UnknownLexemeAction();
 }
 
 CompilationStatus DelimiterLexemeAction(TokenLabel label) {
@@ -343,9 +438,9 @@ CompilationStatus UnitLexemeAction(TokenLabel label) {
 
 CompilationStatus UnknownLexemeAction() {
 	Token * token = createToken(_lexicalAnalyzer, UNKNOWN);
-	char * character = _toCharacterString(token->lexeme);
+	char * character = _toCharacterString(token);
 	const char * hint = strcmp(token->lexeme, ";") == 0 ? " (Vial statements don't need ';')" : "";
-	char * message = concatenate(4, "unexpected character '", character, "'", hint);
+	char * message = concatenate(3, "unexpected character ", character, hint);
 	destroyToken(token);
 	CompilationStatus status = _throwLexicalError(__FUNCTION__, message);
 	free(character);

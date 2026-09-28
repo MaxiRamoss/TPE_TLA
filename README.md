@@ -63,6 +63,8 @@ docker compose run --rm compiler bash -c "src/main/bash/build.sh && src/main/bas
 
 ### Sin Docker
 
+La compilación nativa requiere Linux, GCC con soporte de AddressSanitizer, las herramientas GNU que usa `build.sh` y Bison 3.8 o superior. En macOS, y en general fuera de Linux, hay que usar Docker Compose.
+
 Con las herramientas instaladas, los mismos scripts funcionan directamente desde la raíz del repositorio:
 
 ```bash
@@ -77,9 +79,8 @@ El compilador lee las siguientes variables de entorno (Docker Compose también l
 
 | Nombre                | Default | Descripción                                                                                                                                   |
 | :-------------------- | :-----: | :-------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ENVIRONMENT`         | `Local` | El nombre del entorno activo: `Local`, `Development` o `Production`.                                                                          |
 | `LOG_IGNORED_LEXEMES` | `true`  | Si es `true`, registra en nivel `DEBUGGING` los lexemas ignorados por Flex (espacios y comentarios).                                          |
-| `LOGGING_LEVEL`       | `ALL`   | El nivel mínimo que se muestra por consola. De menor a mayor: `ALL`, `DEBUGGING`, `INFORMATION`, `WARNING`, `ERROR` y `CRITICAL`.            |
+| `LOGGING_LEVEL`       | `ALL` / `INFORMATION` | El nivel mínimo que se muestra por consola. De menor a mayor: `ALL`, `DEBUGGING`, `INFORMATION`, `WARNING`, `ERROR` y `CRITICAL`. Vale `ALL` con Docker Compose e `INFORMATION` al ejecutar el binario directamente. |
 
 El código de salida es `0` si el programa se acepta y distinto de `0` si se rechaza. Los errores léxicos y sintácticos se reportan por `stderr` con la línea donde ocurren; por ejemplo: `Syntax error at line 5: unexpected }, expecting phase or apply`.
 
