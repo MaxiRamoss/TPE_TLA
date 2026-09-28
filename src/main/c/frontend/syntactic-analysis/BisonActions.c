@@ -36,6 +36,15 @@ static void _logSyntacticAnalyzerAction(const char * functionName) {
 
 /* PUBLIC FUNCTIONS */
 
+Position * AbsolutePositionSemanticAction(Expression * x, Expression * y) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Position * position = calloc(1, sizeof(Position));
+	position->x = x;
+	position->y = y;
+	position->type = ABSOLUTE_POSITION;
+	return position;
+}
+
 Arguments * AppendArgumentSemanticAction(Arguments * arguments, Expression * expression) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Argument * argument = calloc(1, sizeof(Argument));
@@ -196,6 +205,23 @@ Factor * IntegerFactorSemanticAction(const int value) {
 	return factor;
 }
 
+Declaration * IntersectionDeclarationDeclarationSemanticAction(IntersectionDeclaration * intersectionDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->intersectionDeclaration = intersectionDeclaration;
+	declaration->type = INTERSECTION_DECLARATION;
+	return declaration;
+}
+
+IntersectionDeclaration * IntersectionDeclarationSemanticAction(Reference * reference, Position * position, Expression * label) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	IntersectionDeclaration * intersectionDeclaration = calloc(1, sizeof(IntersectionDeclaration));
+	intersectionDeclaration->reference = reference;
+	intersectionDeclaration->position = position;
+	intersectionDeclaration->label = label;
+	return intersectionDeclaration;
+}
+
 Factor * MemberAccessFactorSemanticAction(Factor * object, char * member) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
@@ -231,6 +257,36 @@ Factor * ReferenceFactorSemanticAction(Reference * reference) {
 	factor->reference = reference;
 	factor->type = REFERENCE_FACTOR;
 	return factor;
+}
+
+Position * RelativePositionSemanticAction(Expression * distance, const Direction direction, Reference * origin) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Position * position = calloc(1, sizeof(Position));
+	position->distance = distance;
+	position->direction = direction;
+	position->origin = origin;
+	position->type = RELATIVE_POSITION;
+	return position;
+}
+
+Declaration * RoadDeclarationDeclarationSemanticAction(RoadDeclaration * roadDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->roadDeclaration = roadDeclaration;
+	declaration->type = ROAD_DECLARATION;
+	return declaration;
+}
+
+RoadDeclaration * RoadDeclarationSemanticAction(Reference * reference, Reference * from, Reference * to, Expression * length, Expression * limit, Expression * label) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	RoadDeclaration * roadDeclaration = calloc(1, sizeof(RoadDeclaration));
+	roadDeclaration->reference = reference;
+	roadDeclaration->from = from;
+	roadDeclaration->to = to;
+	roadDeclaration->length = length;
+	roadDeclaration->limit = limit;
+	roadDeclaration->label = label;
+	return roadDeclaration;
 }
 
 Simulation * SimulationSemanticAction(char * identifier, Expression * label, Expression * duration) {

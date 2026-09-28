@@ -1,0 +1,9 @@
+// Comentario de línea antes del encabezado.
+simulation S { duration 1 h } // Comentario al final de una línea.
+/*
+ * Comentario de bloque en varias líneas,
+ * con * y / sueltos y un // adentro.
+ */
+intersection A at (0 m, 0 m)
+intersection B at 100 m /* en medio de una declaración */ east of A label "// no es un comentario"
+road AB from A to B // Un /* dentro de un comentario de línea no abre un bloque.

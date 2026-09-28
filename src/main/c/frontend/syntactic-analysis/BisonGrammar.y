@@ -38,11 +38,15 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 	ConstantDeclaration * constantDeclaration;
 	Declaration * declaration;
 	Declarations * declarations;
+	Direction direction;
 	Expression * expression;
 	Factor * factor;
 	FundamentalType fundamentalType;
+	IntersectionDeclaration * intersectionDeclaration;
+	Position * position;
 	Program * program;
 	Reference * reference;
+	RoadDeclaration * roadDeclaration;
 	Simulation * simulation;
 	StringLiteral * stringLiteral;
 	StringParts * stringParts;
@@ -65,7 +69,10 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %destructor { destroyDeclarations($$); } <declarations>
 %destructor { destroyExpression($$); } <expression>
 %destructor { destroyFactor($$); } <factor>
+%destructor { destroyIntersectionDeclaration($$); } <intersectionDeclaration>
+%destructor { destroyPosition($$); } <position>
 %destructor { destroyReference($$); } <reference>
+%destructor { destroyRoadDeclaration($$); } <roadDeclaration>
 %destructor { destroySimulation($$); } <simulation>
 %destructor { destroyStringLiteral($$); } <stringLiteral>
 %destructor { destroyStringParts($$); } <stringParts>
@@ -187,11 +194,15 @@ void yyerror(const YYLTYPE * location, const char * message) {}
 %type <constantDeclaration> constantDeclaration
 %type <declaration> declaration
 %type <declarations> declarations
-%type <expression> expression labelOpt
+%type <direction> direction
+%type <expression> expression labelOpt lengthOpt limitOpt
 %type <factor> factor
 %type <fundamentalType> fundamentalType
+%type <intersectionDeclaration> intersectionDeclaration
+%type <position> position
 %type <program> program
 %type <reference> reference
+%type <roadDeclaration> roadDeclaration
 %type <simulation> simulation
 %type <stringLiteral> string
 %type <stringParts> stringParts
@@ -227,6 +238,8 @@ declarations: %empty											{ $$ = EmptyDeclarationsSemanticAction(); }
 	;
 
 declaration: constantDeclaration								{ $$ = ConstantDeclarationDeclarationSemanticAction($1); }
+	| intersectionDeclaration									{ $$ = IntersectionDeclarationDeclarationSemanticAction($1); }
+	| roadDeclaration											{ $$ = RoadDeclarationDeclarationSemanticAction($1); }
 	;
 
 reference: ID													{ $$ = IdentifierReferenceSemanticAction($1); }
@@ -246,6 +259,30 @@ fundamentalType: INTEGER_TYPE									{ $$ = INTEGER_FUNDAMENTAL_TYPE; }
 	| DURATION													{ $$ = DURATION_FUNDAMENTAL_TYPE; }
 	| DISTANCE													{ $$ = DISTANCE_FUNDAMENTAL_TYPE; }
 	| SPEED														{ $$ = SPEED_FUNDAMENTAL_TYPE; }
+	;
+
+intersectionDeclaration: INTERSECTION reference position labelOpt	{ $$ = IntersectionDeclarationSemanticAction($2, $3, $4); }
+	;
+
+position: AT OPEN_PARENTHESIS expression COMMA expression CLOSE_PARENTHESIS	{ $$ = AbsolutePositionSemanticAction($3, $5); }
+	| AT expression direction OF reference						{ $$ = RelativePositionSemanticAction($2, $3, $5); }
+	;
+
+direction: NORTH												{ $$ = NORTH_DIRECTION; }
+	| SOUTH														{ $$ = SOUTH_DIRECTION; }
+	| EAST														{ $$ = EAST_DIRECTION; }
+	| WEST														{ $$ = WEST_DIRECTION; }
+	;
+
+roadDeclaration: ROAD reference FROM reference TO reference lengthOpt limitOpt labelOpt	{ $$ = RoadDeclarationSemanticAction($2, $4, $6, $7, $8, $9); }
+	;
+
+lengthOpt: %empty												{ $$ = NULL; }
+	| LENGTH expression											{ $$ = $2; }
+	;
+
+limitOpt: %empty												{ $$ = NULL; }
+	| LIMIT expression											{ $$ = $2; }
 	;
 
 expression: expression[left] OR expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, DISJUNCTION); }

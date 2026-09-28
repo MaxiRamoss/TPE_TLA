@@ -16,9 +16,11 @@ ModuleDestructor initializeAbstractSyntaxTreeModule();
  */
 
 typedef enum DeclarationType DeclarationType;
+typedef enum Direction Direction;
 typedef enum ExpressionType ExpressionType;
 typedef enum FactorType FactorType;
 typedef enum FundamentalType FundamentalType;
+typedef enum PositionType PositionType;
 typedef enum StringPartType StringPartType;
 typedef enum Unit Unit;
 
@@ -30,9 +32,12 @@ typedef struct Declaration Declaration;
 typedef struct Declarations Declarations;
 typedef struct Expression Expression;
 typedef struct Factor Factor;
+typedef struct IntersectionDeclaration IntersectionDeclaration;
+typedef struct Position Position;
 typedef struct Program Program;
 typedef struct Quantity Quantity;
 typedef struct Reference Reference;
+typedef struct RoadDeclaration RoadDeclaration;
 typedef struct Simulation Simulation;
 typedef struct StringLiteral StringLiteral;
 typedef struct StringPart StringPart;
@@ -45,7 +50,16 @@ typedef struct StringParts StringParts;
  */
 
 enum DeclarationType {
-	CONSTANT_DECLARATION
+	CONSTANT_DECLARATION,
+	INTERSECTION_DECLARATION,
+	ROAD_DECLARATION
+};
+
+enum Direction {
+	EAST_DIRECTION,
+	NORTH_DIRECTION,
+	SOUTH_DIRECTION,
+	WEST_DIRECTION
 };
 
 enum ExpressionType {
@@ -86,6 +100,11 @@ enum FundamentalType {
 	STRING_FUNDAMENTAL_TYPE
 };
 
+enum PositionType {
+	ABSOLUTE_POSITION,
+	RELATIVE_POSITION
+};
+
 enum StringPartType {
 	FRAGMENT_STRING_PART,
 	INTERPOLATION_STRING_PART
@@ -124,6 +143,8 @@ struct Declarations {
 struct Declaration {
 	union {
 		ConstantDeclaration * constantDeclaration;
+		IntersectionDeclaration * intersectionDeclaration;
+		RoadDeclaration * roadDeclaration;
 	};
 	DeclarationType type;
 	Declaration * next;
@@ -133,6 +154,41 @@ struct ConstantDeclaration {
 	FundamentalType type;
 	Reference * reference;
 	Expression * expression;
+};
+
+struct IntersectionDeclaration {
+	Reference * reference;
+	Position * position;
+	/** NULL if the intersection has no label. */
+	Expression * label;
+};
+
+struct Position {
+	union {
+		struct {
+			Expression * x;
+			Expression * y;
+		};
+		struct {
+			Expression * distance;
+			Direction direction;
+			/** The intersection from which the distance is measured. */
+			Reference * origin;
+		};
+	};
+	PositionType type;
+};
+
+struct RoadDeclaration {
+	Reference * reference;
+	Reference * from;
+	Reference * to;
+	/** NULL if the road has no explicit length. */
+	Expression * length;
+	/** NULL if the road has no speed limit. */
+	Expression * limit;
+	/** NULL if the road has no label. */
+	Expression * label;
 };
 
 struct Reference {
@@ -226,9 +282,12 @@ void destroyDeclaration(Declaration * declaration);
 void destroyDeclarations(Declarations * declarations);
 void destroyExpression(Expression * expression);
 void destroyFactor(Factor * factor);
+void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclaration);
+void destroyPosition(Position * position);
 void destroyProgram(Program * program);
 void destroyQuantity(Quantity * quantity);
 void destroyReference(Reference * reference);
+void destroyRoadDeclaration(RoadDeclaration * roadDeclaration);
 void destroySimulation(Simulation * simulation);
 void destroyStringLiteral(StringLiteral * stringLiteral);
 void destroyStringPart(StringPart * stringPart);

@@ -17,6 +17,7 @@ ModuleDestructor initializeBisonActionsModule();
  * Bison semantic actions.
  */
 
+Position * AbsolutePositionSemanticAction(Expression * x, Expression * y);
 Arguments * AppendArgumentSemanticAction(Arguments * arguments, Expression * expression);
 Declarations * AppendDeclarationSemanticAction(Declarations * declarations, Declaration * declaration);
 StringParts * AppendFragmentSemanticAction(StringParts * stringParts, char * fragment);
@@ -35,10 +36,15 @@ Expression * FactorExpressionSemanticAction(Factor * factor);
 Reference * IdentifierReferenceSemanticAction(char * identifier);
 Reference * IndexedReferenceSemanticAction(char * identifier, Expression * index);
 Factor * IntegerFactorSemanticAction(const int value);
+Declaration * IntersectionDeclarationDeclarationSemanticAction(IntersectionDeclaration * intersectionDeclaration);
+IntersectionDeclaration * IntersectionDeclarationSemanticAction(Reference * reference, Position * position, Expression * label);
 Factor * MemberAccessFactorSemanticAction(Factor * object, char * member);
 Program * ProgramSemanticAction(Simulation * simulation, Declarations * declarations);
 Factor * QuantityFactorSemanticAction(const int value, const Unit unit);
 Factor * ReferenceFactorSemanticAction(Reference * reference);
+Position * RelativePositionSemanticAction(Expression * distance, const Direction direction, Reference * origin);
+Declaration * RoadDeclarationDeclarationSemanticAction(RoadDeclaration * roadDeclaration);
+RoadDeclaration * RoadDeclarationSemanticAction(Reference * reference, Reference * from, Reference * to, Expression * length, Expression * limit, Expression * label);
 Simulation * SimulationSemanticAction(char * identifier, Expression * label, Expression * duration);
 Factor * StringFactorSemanticAction(StringLiteral * stringLiteral);
 StringLiteral * StringLiteralSemanticAction(StringParts * stringParts);

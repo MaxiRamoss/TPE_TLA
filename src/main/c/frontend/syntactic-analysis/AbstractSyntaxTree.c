@@ -66,6 +66,12 @@ void destroyDeclaration(Declaration * declaration) {
 			case CONSTANT_DECLARATION:
 				destroyConstantDeclaration(declaration->constantDeclaration);
 				break;
+			case INTERSECTION_DECLARATION:
+				destroyIntersectionDeclaration(declaration->intersectionDeclaration);
+				break;
+			case ROAD_DECLARATION:
+				destroyRoadDeclaration(declaration->roadDeclaration);
+				break;
 			default:
 				logError(_logger, "The specified declaration type is unknown: %d", declaration->type);
 				break;
@@ -155,6 +161,36 @@ void destroyFactor(Factor * factor) {
 	}
 }
 
+void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (intersectionDeclaration != NULL) {
+		destroyReference(intersectionDeclaration->reference);
+		destroyPosition(intersectionDeclaration->position);
+		destroyExpression(intersectionDeclaration->label);
+		free(intersectionDeclaration);
+	}
+}
+
+void destroyPosition(Position * position) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (position != NULL) {
+		switch (position->type) {
+			case ABSOLUTE_POSITION:
+				destroyExpression(position->x);
+				destroyExpression(position->y);
+				break;
+			case RELATIVE_POSITION:
+				destroyExpression(position->distance);
+				destroyReference(position->origin);
+				break;
+			default:
+				logError(_logger, "The specified position type is unknown: %d", position->type);
+				break;
+		}
+		free(position);
+	}
+}
+
 void destroyProgram(Program * program) {
 	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
 	if (program != NULL) {
@@ -177,6 +213,19 @@ void destroyReference(Reference * reference) {
 		free(reference->identifier);
 		destroyExpression(reference->index);
 		free(reference);
+	}
+}
+
+void destroyRoadDeclaration(RoadDeclaration * roadDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (roadDeclaration != NULL) {
+		destroyReference(roadDeclaration->reference);
+		destroyReference(roadDeclaration->from);
+		destroyReference(roadDeclaration->to);
+		destroyExpression(roadDeclaration->length);
+		destroyExpression(roadDeclaration->limit);
+		destroyExpression(roadDeclaration->label);
+		free(roadDeclaration);
 	}
 }
 
