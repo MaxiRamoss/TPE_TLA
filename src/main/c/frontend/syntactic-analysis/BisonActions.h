@@ -47,6 +47,8 @@ Statement * ExtendStatementSemanticAction(Reference * road, Expression * duratio
 Expression * FactorExpressionSemanticAction(Factor * factor);
 Declaration * FlowDeclarationDeclarationSemanticAction(FlowDeclaration * flowDeclaration);
 FlowDeclaration * FlowDeclarationSemanticAction(Reference * reference, Reference * route, Expression * label, Expression * amount, Expression * period, Expression * from, Expression * to);
+Declaration * ForDeclarationDeclarationSemanticAction(ForDeclaration * forDeclaration);
+ForDeclaration * ForDeclarationSemanticAction(char * variable, Expression * from, Expression * to, Declarations * declarations);
 ParameterType FundamentalParameterTypeSemanticAction(const FundamentalType fundamentalType);
 Reference * IdentifierReferenceSemanticAction(char * identifier);
 IfStatement * IfElseIfStatementSemanticAction(Expression * condition, Block * thenBlock, IfStatement * elseIfStatement);
@@ -62,6 +64,8 @@ Declaration * LightDeclarationDeclarationSemanticAction(LightDeclaration * light
 LightDeclaration * LightDeclarationSemanticAction(Reference * reference, Reference * intersection, Expression * label, LightItems * items);
 Statement * LogStatementSemanticAction(StringLiteral * message);
 Factor * MemberAccessFactorSemanticAction(Factor * object, char * member);
+Declaration * MetricDeclarationDeclarationSemanticAction(MetricDeclaration * metricDeclaration);
+MetricDeclaration * MetricDeclarationSemanticAction(Reference * reference, Call * aggregator, char * event, Expression * label);
 Parameter * ParameterSemanticAction(const ParameterType type, char * identifier);
 LightItem * PhaseLightItemSemanticAction(References * roads, Expression * duration);
 Declaration * PolicyDeclarationDeclarationSemanticAction(PolicyDeclaration * policyDeclaration);

@@ -82,11 +82,17 @@ void destroyDeclaration(Declaration * declaration) {
 			case FLOW_DECLARATION:
 				destroyFlowDeclaration(declaration->flowDeclaration);
 				break;
+			case FOR_DECLARATION:
+				destroyForDeclaration(declaration->forDeclaration);
+				break;
 			case INTERSECTION_DECLARATION:
 				destroyIntersectionDeclaration(declaration->intersectionDeclaration);
 				break;
 			case LIGHT_DECLARATION:
 				destroyLightDeclaration(declaration->lightDeclaration);
+				break;
+			case METRIC_DECLARATION:
+				destroyMetricDeclaration(declaration->metricDeclaration);
 				break;
 			case POLICY_DECLARATION:
 				destroyPolicyDeclaration(declaration->policyDeclaration);
@@ -200,6 +206,17 @@ void destroyFlowDeclaration(FlowDeclaration * flowDeclaration) {
 	}
 }
 
+void destroyForDeclaration(ForDeclaration * forDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (forDeclaration != NULL) {
+		free(forDeclaration->variable);
+		destroyExpression(forDeclaration->from);
+		destroyExpression(forDeclaration->to);
+		destroyDeclarations(forDeclaration->declarations);
+		free(forDeclaration);
+	}
+}
+
 void destroyIfStatement(IfStatement * ifStatement) {
 	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
 	if (ifStatement != NULL) {
@@ -272,6 +289,17 @@ void destroyLightItems(LightItems * lightItems) {
 			lightItem = next;
 		}
 		free(lightItems);
+	}
+}
+
+void destroyMetricDeclaration(MetricDeclaration * metricDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (metricDeclaration != NULL) {
+		destroyReference(metricDeclaration->reference);
+		destroyCall(metricDeclaration->aggregator);
+		free(metricDeclaration->event);
+		destroyExpression(metricDeclaration->label);
+		free(metricDeclaration);
 	}
 }
 

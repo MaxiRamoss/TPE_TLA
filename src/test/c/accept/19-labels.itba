@@ -1,0 +1,16 @@
+simulation S label "Red de prueba" { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+intersection D at 100 m north of B label "Intersección D"
+road AB from A to B label "Calle AB"
+road BC from B to C
+light L at B label "Semáforo de B" {
+	phase green for AB during 30 s
+}
+route R = A -> B -> C label "De A a C"
+flow F along R label "Flujo de A a C" { spawn 1 every 8 s }
+metric Llegadas = count() on arrival label "Vehículos que llegaron"
+for i in 1 .. 2 {
+	intersection E[i] at (i * 100 m, 200 m) label "Esquina {i}"
+}

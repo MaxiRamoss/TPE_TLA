@@ -63,12 +63,14 @@ void yyerror(const YYLTYPE * location, const char * message) {
 	Expression * expression;
 	Factor * factor;
 	FlowDeclaration * flowDeclaration;
+	ForDeclaration * forDeclaration;
 	FundamentalType fundamentalType;
 	IfStatement * ifStatement;
 	IntersectionDeclaration * intersectionDeclaration;
 	LightDeclaration * lightDeclaration;
 	LightItem * lightItem;
 	LightItems * lightItems;
+	MetricDeclaration * metricDeclaration;
 	Parameter * parameter;
 	Parameters * parameters;
 	ParameterType parameterType;
@@ -114,11 +116,13 @@ void yyerror(const YYLTYPE * location, const char * message) {
 %destructor { destroyExpression($$); } <expression>
 %destructor { destroyFactor($$); } <factor>
 %destructor { destroyFlowDeclaration($$); } <flowDeclaration>
+%destructor { destroyForDeclaration($$); } <forDeclaration>
 %destructor { destroyIfStatement($$); } <ifStatement>
 %destructor { destroyIntersectionDeclaration($$); } <intersectionDeclaration>
 %destructor { destroyLightDeclaration($$); } <lightDeclaration>
 %destructor { destroyLightItem($$); } <lightItem>
 %destructor { destroyLightItems($$); } <lightItems>
+%destructor { destroyMetricDeclaration($$); } <metricDeclaration>
 %destructor { destroyParameter($$); } <parameter>
 %destructor { destroyParameters($$); } <parameters>
 %destructor { destroyPath($$); } <path>
@@ -256,12 +260,14 @@ void yyerror(const YYLTYPE * location, const char * message) {
 %type <expression> expression labelOpt lengthOpt limitOpt
 %type <factor> factor
 %type <flowDeclaration> flowDeclaration
+%type <forDeclaration> forDeclaration
 %type <fundamentalType> fundamentalType
 %type <ifStatement> ifStatement
 %type <intersectionDeclaration> intersectionDeclaration
 %type <lightDeclaration> lightDeclaration
 %type <lightItem> lightItem
 %type <lightItems> lightItems
+%type <metricDeclaration> metricDeclaration
 %type <parameter> parameter
 %type <parameters> parameters parametersOpt
 %type <parameterType> type
@@ -316,6 +322,8 @@ declaration: constantDeclaration								{ $$ = ConstantDeclarationDeclarationSem
 	| routeDeclaration											{ $$ = RouteDeclarationDeclarationSemanticAction($1); }
 	| flowDeclaration											{ $$ = FlowDeclarationDeclarationSemanticAction($1); }
 	| policyDeclaration											{ $$ = PolicyDeclarationDeclarationSemanticAction($1); }
+	| metricDeclaration											{ $$ = MetricDeclarationDeclarationSemanticAction($1); }
+	| forDeclaration											{ $$ = ForDeclarationDeclarationSemanticAction($1); }
 	;
 
 reference: ID													{ $$ = IdentifierReferenceSemanticAction($1); }
@@ -428,6 +436,12 @@ statement: ifStatement											{ $$ = IfStatementStatementSemanticAction($1); 
 ifStatement: IF expression block								{ $$ = IfStatementSemanticAction($2, $3); }
 	| IF expression block ELSE block							{ $$ = IfElseStatementSemanticAction($2, $3, $5); }
 	| IF expression block ELSE ifStatement						{ $$ = IfElseIfStatementSemanticAction($2, $3, $5); }
+	;
+
+metricDeclaration: METRIC reference EQUAL call ON ID labelOpt	{ $$ = MetricDeclarationSemanticAction($2, $4, $6, $7); }
+	;
+
+forDeclaration: FOR ID IN expression RANGE expression OPEN_BRACE declarations CLOSE_BRACE	{ $$ = ForDeclarationSemanticAction($2, $4, $6, $8); }
 	;
 
 expression: expression[left] OR expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, DISJUNCTION); }

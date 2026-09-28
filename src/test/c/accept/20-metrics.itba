@@ -1,0 +1,8 @@
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road CórdobaOeste from A to B
+metric Completados = count() on arrival label "Vehículos que completaron su ruta"
+metric ViajePromedio = average(trip.travel_time) on arrival
+metric PicoOeste = maximum(occupancy(CórdobaOeste)) on tick

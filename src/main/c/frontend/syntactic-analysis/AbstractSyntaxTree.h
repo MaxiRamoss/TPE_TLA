@@ -38,11 +38,13 @@ typedef struct Declarations Declarations;
 typedef struct Expression Expression;
 typedef struct Factor Factor;
 typedef struct FlowDeclaration FlowDeclaration;
+typedef struct ForDeclaration ForDeclaration;
 typedef struct IfStatement IfStatement;
 typedef struct IntersectionDeclaration IntersectionDeclaration;
 typedef struct LightDeclaration LightDeclaration;
 typedef struct LightItem LightItem;
 typedef struct LightItems LightItems;
+typedef struct MetricDeclaration MetricDeclaration;
 typedef struct Parameter Parameter;
 typedef struct Parameters Parameters;
 typedef struct Path Path;
@@ -71,8 +73,10 @@ typedef struct Waypoint Waypoint;
 enum DeclarationType {
 	CONSTANT_DECLARATION,
 	FLOW_DECLARATION,
+	FOR_DECLARATION,
 	INTERSECTION_DECLARATION,
 	LIGHT_DECLARATION,
+	METRIC_DECLARATION,
 	POLICY_DECLARATION,
 	ROAD_DECLARATION,
 	ROUTE_DECLARATION
@@ -202,8 +206,10 @@ struct Declaration {
 	union {
 		ConstantDeclaration * constantDeclaration;
 		FlowDeclaration * flowDeclaration;
+		ForDeclaration * forDeclaration;
 		IntersectionDeclaration * intersectionDeclaration;
 		LightDeclaration * lightDeclaration;
+		MetricDeclaration * metricDeclaration;
 		PolicyDeclaration * policyDeclaration;
 		RoadDeclaration * roadDeclaration;
 		RouteDeclaration * routeDeclaration;
@@ -392,6 +398,27 @@ struct IfStatement {
 	ElseBranchType elseBranchType;
 };
 
+struct MetricDeclaration {
+	Reference * reference;
+	/** The aggregator that accumulates the results of each event. */
+	Call * aggregator;
+	/** The event after which the metric is evaluated (e.g., "tick"). */
+	char * event;
+	/** NULL if the metric has no label. */
+	Expression * label;
+};
+
+/**
+ * A bounded iteration: the range from "from" to "to" is inclusive.
+ */
+struct ForDeclaration {
+	char * variable;
+	Expression * from;
+	Expression * to;
+	/** The body of the loop. It may be empty. */
+	Declarations * declarations;
+};
+
 struct Reference {
 	char * identifier;
 	/** NULL if the reference is not indexed. */
@@ -485,11 +512,13 @@ void destroyDeclarations(Declarations * declarations);
 void destroyExpression(Expression * expression);
 void destroyFactor(Factor * factor);
 void destroyFlowDeclaration(FlowDeclaration * flowDeclaration);
+void destroyForDeclaration(ForDeclaration * forDeclaration);
 void destroyIfStatement(IfStatement * ifStatement);
 void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclaration);
 void destroyLightDeclaration(LightDeclaration * lightDeclaration);
 void destroyLightItem(LightItem * lightItem);
 void destroyLightItems(LightItems * lightItems);
+void destroyMetricDeclaration(MetricDeclaration * metricDeclaration);
 void destroyParameter(Parameter * parameter);
 void destroyParameters(Parameters * parameters);
 void destroyPath(Path * path);

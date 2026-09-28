@@ -321,6 +321,24 @@ FlowDeclaration * FlowDeclarationSemanticAction(Reference * reference, Reference
 	return flowDeclaration;
 }
 
+Declaration * ForDeclarationDeclarationSemanticAction(ForDeclaration * forDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->forDeclaration = forDeclaration;
+	declaration->type = FOR_DECLARATION;
+	return declaration;
+}
+
+ForDeclaration * ForDeclarationSemanticAction(char * variable, Expression * from, Expression * to, Declarations * declarations) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	ForDeclaration * forDeclaration = calloc(1, sizeof(ForDeclaration));
+	forDeclaration->variable = variable;
+	forDeclaration->from = from;
+	forDeclaration->to = to;
+	forDeclaration->declarations = declarations;
+	return forDeclaration;
+}
+
 ParameterType FundamentalParameterTypeSemanticAction(const FundamentalType fundamentalType) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	return _fundamentalParameterTypes[fundamentalType];
@@ -443,6 +461,24 @@ Factor * MemberAccessFactorSemanticAction(Factor * object, char * member) {
 	factor->member = member;
 	factor->type = MEMBER_ACCESS_FACTOR;
 	return factor;
+}
+
+Declaration * MetricDeclarationDeclarationSemanticAction(MetricDeclaration * metricDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->metricDeclaration = metricDeclaration;
+	declaration->type = METRIC_DECLARATION;
+	return declaration;
+}
+
+MetricDeclaration * MetricDeclarationSemanticAction(Reference * reference, Call * aggregator, char * event, Expression * label) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	MetricDeclaration * metricDeclaration = calloc(1, sizeof(MetricDeclaration));
+	metricDeclaration->reference = reference;
+	metricDeclaration->aggregator = aggregator;
+	metricDeclaration->event = event;
+	metricDeclaration->label = label;
+	return metricDeclaration;
 }
 
 Parameter * ParameterSemanticAction(const ParameterType type, char * identifier) {

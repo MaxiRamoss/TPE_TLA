@@ -1,0 +1,6 @@
+simulation S { duration 1 h }
+intersection Rivadavia[0] at (0 m, 0 m)
+for i in 1 .. 4 {
+	intersection Rivadavia[i] at 100 m east of Rivadavia[i - 1] label "Rivadavia {i}"
+	road TramoRivadavia[i] from Rivadavia[i - 1] to Rivadavia[i] limit 40 km/h
+}
