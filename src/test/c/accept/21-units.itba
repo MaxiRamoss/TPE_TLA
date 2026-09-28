@@ -1,0 +1,8 @@
+simulation S { duration 1 h }
+distance Cuadra = 100 m
+distance Tramo = 2 km
+duration Verde = 30 s
+duration Ventana = 15 min
+duration Total = 2 h
+speed Avenida = 60 km/h
+speed Caminata = 1 m/s

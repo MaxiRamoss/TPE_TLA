@@ -36,20 +36,133 @@ static void _logSyntacticAnalyzerAction(const char * functionName) {
 
 /* PUBLIC FUNCTIONS */
 
-Constant * IntegerConstantSemanticAction(const int value) {
+Arguments * AppendArgumentSemanticAction(Arguments * arguments, Expression * expression) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
-	Constant * constant = calloc(1, sizeof(Constant));
-	constant->value = value;
-	return constant;
+	Argument * argument = calloc(1, sizeof(Argument));
+	argument->expression = expression;
+	if (arguments->last == NULL) {
+		arguments->first = argument;
+	}
+	else {
+		arguments->last->next = argument;
+	}
+	arguments->last = argument;
+	return arguments;
 }
 
-Expression * ArithmeticExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type) {
+Declarations * AppendDeclarationSemanticAction(Declarations * declarations, Declaration * declaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	if (declarations->last == NULL) {
+		declarations->first = declaration;
+	}
+	else {
+		declarations->last->next = declaration;
+	}
+	declarations->last = declaration;
+	return declarations;
+}
+
+StringParts * AppendFragmentSemanticAction(StringParts * stringParts, char * fragment) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	StringPart * stringPart = calloc(1, sizeof(StringPart));
+	stringPart->fragment = fragment;
+	stringPart->type = FRAGMENT_STRING_PART;
+	if (stringParts->last == NULL) {
+		stringParts->first = stringPart;
+	}
+	else {
+		stringParts->last->next = stringPart;
+	}
+	stringParts->last = stringPart;
+	return stringParts;
+}
+
+StringParts * AppendInterpolationSemanticAction(StringParts * stringParts, Expression * expression) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	StringPart * stringPart = calloc(1, sizeof(StringPart));
+	stringPart->expression = expression;
+	stringPart->type = INTERPOLATION_STRING_PART;
+	if (stringParts->last == NULL) {
+		stringParts->first = stringPart;
+	}
+	else {
+		stringParts->last->next = stringPart;
+	}
+	stringParts->last = stringPart;
+	return stringParts;
+}
+
+Expression * BinaryExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Expression * expression = calloc(1, sizeof(Expression));
 	expression->leftExpression = leftExpression;
 	expression->rightExpression = rightExpression;
 	expression->type = type;
 	return expression;
+}
+
+Factor * BooleanFactorSemanticAction(const bool value) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Factor * factor = calloc(1, sizeof(Factor));
+	factor->boolean = value;
+	factor->type = BOOLEAN_FACTOR;
+	return factor;
+}
+
+Factor * CallFactorSemanticAction(Call * call) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Factor * factor = calloc(1, sizeof(Factor));
+	factor->call = call;
+	factor->type = CALL_FACTOR;
+	return factor;
+}
+
+Call * CallSemanticAction(char * identifier, Arguments * arguments) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Call * call = calloc(1, sizeof(Call));
+	call->identifier = identifier;
+	call->arguments = arguments;
+	return call;
+}
+
+Declaration * ConstantDeclarationDeclarationSemanticAction(ConstantDeclaration * constantDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->constantDeclaration = constantDeclaration;
+	declaration->type = CONSTANT_DECLARATION;
+	return declaration;
+}
+
+ConstantDeclaration * ConstantDeclarationSemanticAction(FundamentalType type, Reference * reference, Expression * expression) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	ConstantDeclaration * constantDeclaration = calloc(1, sizeof(ConstantDeclaration));
+	constantDeclaration->type = type;
+	constantDeclaration->reference = reference;
+	constantDeclaration->expression = expression;
+	return constantDeclaration;
+}
+
+Arguments * EmptyArgumentsSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(Arguments));
+}
+
+Declarations * EmptyDeclarationsSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(Declarations));
+}
+
+StringParts * EmptyStringPartsSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(StringParts));
+}
+
+Factor * ExpressionFactorSemanticAction(Expression * expression) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Factor * factor = calloc(1, sizeof(Factor));
+	factor->expression = expression;
+	factor->type = EXPRESSION_FACTOR;
+	return factor;
 }
 
 Expression * FactorExpressionSemanticAction(Factor * factor) {
@@ -60,26 +173,94 @@ Expression * FactorExpressionSemanticAction(Factor * factor) {
 	return expression;
 }
 
-Factor * ConstantFactorSemanticAction(Constant * constant) {
+Reference * IdentifierReferenceSemanticAction(char * identifier) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Reference * reference = calloc(1, sizeof(Reference));
+	reference->identifier = identifier;
+	return reference;
+}
+
+Reference * IndexedReferenceSemanticAction(char * identifier, Expression * index) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Reference * reference = calloc(1, sizeof(Reference));
+	reference->identifier = identifier;
+	reference->index = index;
+	return reference;
+}
+
+Factor * IntegerFactorSemanticAction(const int value) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
-	factor->constant = constant;
-	factor->type = CONSTANT;
+	factor->integer = value;
+	factor->type = INTEGER_FACTOR;
 	return factor;
 }
 
-Factor * ExpressionFactorSemanticAction(Expression * expression) {
+Factor * MemberAccessFactorSemanticAction(Factor * object, char * member) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
-	factor->expression = expression;
-	factor->type = EXPRESSION;
+	factor->factor = object;
+	factor->member = member;
+	factor->type = MEMBER_ACCESS_FACTOR;
 	return factor;
 }
 
-Program * ExpressionProgramSemanticAction(Expression * expression) {
+Program * ProgramSemanticAction(Simulation * simulation, Declarations * declarations) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Program * program = calloc(1, sizeof(Program));
-	program->expression = expression;
+	program->simulation = simulation;
+	program->declarations = declarations;
 	_compilerState->abstractSyntaxtTree = program;
 	return program;
+}
+
+Factor * QuantityFactorSemanticAction(const int value, const Unit unit) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Quantity * quantity = calloc(1, sizeof(Quantity));
+	quantity->value = value;
+	quantity->unit = unit;
+	Factor * factor = calloc(1, sizeof(Factor));
+	factor->quantity = quantity;
+	factor->type = QUANTITY_FACTOR;
+	return factor;
+}
+
+Factor * ReferenceFactorSemanticAction(Reference * reference) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Factor * factor = calloc(1, sizeof(Factor));
+	factor->reference = reference;
+	factor->type = REFERENCE_FACTOR;
+	return factor;
+}
+
+Simulation * SimulationSemanticAction(char * identifier, Expression * label, Expression * duration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Simulation * simulation = calloc(1, sizeof(Simulation));
+	simulation->identifier = identifier;
+	simulation->label = label;
+	simulation->duration = duration;
+	return simulation;
+}
+
+Factor * StringFactorSemanticAction(StringLiteral * stringLiteral) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Factor * factor = calloc(1, sizeof(Factor));
+	factor->stringLiteral = stringLiteral;
+	factor->type = STRING_FACTOR;
+	return factor;
+}
+
+StringLiteral * StringLiteralSemanticAction(StringParts * stringParts) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	StringLiteral * stringLiteral = calloc(1, sizeof(StringLiteral));
+	stringLiteral->parts = stringParts;
+	return stringLiteral;
+}
+
+Expression * UnaryExpressionSemanticAction(Expression * operand, ExpressionType type) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Expression * expression = calloc(1, sizeof(Expression));
+	expression->expression = operand;
+	expression->type = type;
+	return expression;
 }

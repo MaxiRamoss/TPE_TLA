@@ -7,6 +7,7 @@
 #include "../../support/type/TokenLabel.h"
 #include "AbstractSyntaxTree.h"
 #include "BisonParser.h"
+#include <stdbool.h>
 #include <stdlib.h>
 
 /** Initialize module's internal state. */
@@ -16,11 +17,31 @@ ModuleDestructor initializeBisonActionsModule();
  * Bison semantic actions.
  */
 
-Constant * IntegerConstantSemanticAction(const int value);
-Expression * ArithmeticExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type);
-Expression * FactorExpressionSemanticAction(Factor * factor);
-Factor * ConstantFactorSemanticAction(Constant * constant);
+Arguments * AppendArgumentSemanticAction(Arguments * arguments, Expression * expression);
+Declarations * AppendDeclarationSemanticAction(Declarations * declarations, Declaration * declaration);
+StringParts * AppendFragmentSemanticAction(StringParts * stringParts, char * fragment);
+StringParts * AppendInterpolationSemanticAction(StringParts * stringParts, Expression * expression);
+Expression * BinaryExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type);
+Factor * BooleanFactorSemanticAction(const bool value);
+Factor * CallFactorSemanticAction(Call * call);
+Call * CallSemanticAction(char * identifier, Arguments * arguments);
+Declaration * ConstantDeclarationDeclarationSemanticAction(ConstantDeclaration * constantDeclaration);
+ConstantDeclaration * ConstantDeclarationSemanticAction(FundamentalType type, Reference * reference, Expression * expression);
+Arguments * EmptyArgumentsSemanticAction();
+Declarations * EmptyDeclarationsSemanticAction();
+StringParts * EmptyStringPartsSemanticAction();
 Factor * ExpressionFactorSemanticAction(Expression * expression);
-Program * ExpressionProgramSemanticAction(Expression * expression);
+Expression * FactorExpressionSemanticAction(Factor * factor);
+Reference * IdentifierReferenceSemanticAction(char * identifier);
+Reference * IndexedReferenceSemanticAction(char * identifier, Expression * index);
+Factor * IntegerFactorSemanticAction(const int value);
+Factor * MemberAccessFactorSemanticAction(Factor * object, char * member);
+Program * ProgramSemanticAction(Simulation * simulation, Declarations * declarations);
+Factor * QuantityFactorSemanticAction(const int value, const Unit unit);
+Factor * ReferenceFactorSemanticAction(Reference * reference);
+Simulation * SimulationSemanticAction(char * identifier, Expression * label, Expression * duration);
+Factor * StringFactorSemanticAction(StringLiteral * stringLiteral);
+StringLiteral * StringLiteralSemanticAction(StringParts * stringParts);
+Expression * UnaryExpressionSemanticAction(Expression * operand, ExpressionType type);
 
 #endif

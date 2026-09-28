@@ -1,0 +1,7 @@
+simulation S { duration 1 h }
+integer A = 1 + 2 * 3 - 4 / 2
+integer B = -A + (A - 1) * -(2 + 3)
+integer C = --A - -B
+boolean D = A = 5 or not B = 1 and A < B
+boolean E = not (A != B) and (A <= B or A >= B)
+boolean F = A > 1 = true

@@ -1,0 +1,7 @@
+simulation S { duration 1 h }
+integer Umbral = 15
+boolean Modo = true
+string Barrio = "Microcentro"
+duration VerdeBase = 30 s
+distance Cuadra = 100 m
+speed Avenida = 60 km/h

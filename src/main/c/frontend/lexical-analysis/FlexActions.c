@@ -26,17 +26,22 @@ ModuleDestructor initializeFlexActionsModule(LexicalAnalyzer * lexicalAnalyzer) 
 /* PRIVATE FUNCTIONS */
 
 static void _logTokenAction(const char * actionName, Token * token);
+static CompilationStatus _pushTokenAction(const char * actionName, Token * token);
 static CompilationStatus _throw();
+static CompilationStatus _throwLexicalError(const char * actionName, const char * message);
 static const char * _toContextString(const FlexContext context);
+static char * _unescapeStringFragment(const char * lexeme);
 
 /**
- * Get the context string of the specified Flex context.
+ * Get the context string of the specified Flex context. The identifiers
+ * follow the order of declaration in "FlexPatterns.l".
  */
 static const char * _toContextString(const FlexContext context) {
 	switch (context) {
 		case 0: return "INITIAL";
-		// @todo Define your context-names here.
 		case 1: return "MULTILINE_COMMENT";
+		case 2: return "STRING";
+		case 3: return "INTERPOLATION";
 		default:
 			logError(_logger, "The specified Flex context is unknown: %d", context);
 			return "<UNKNOWN CONTEXT>";
@@ -61,6 +66,16 @@ static void _logTokenAction(const char * actionName, Token * token) {
 }
 
 /**
+ * Logs, pushes and destroys a token, and returns the status of the parser.
+ */
+static CompilationStatus _pushTokenAction(const char * actionName, Token * token) {
+	_logTokenAction(actionName, token);
+	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
+	destroyToken(token);
+	return status;
+}
+
+/**
  * Instructs the parser to halt execution unrecoverably.
  */
 CompilationStatus _throw() {
@@ -71,13 +86,79 @@ CompilationStatus _throw() {
 	return FAILED;
 }
 
+/**
+ * Reports a lexical error over the current lexeme, and halts the parser. Flex
+ * counts the line-breaks of the lexeme before running the action, so they
+ * are discounted to report the line where the lexeme begins.
+ */
+static CompilationStatus _throwLexicalError(const char * actionName, const char * message) {
+	Token * token = createToken(_lexicalAnalyzer, UNKNOWN);
+	_logTokenAction(actionName, token);
+	unsigned int line = token->line;
+	for (unsigned int k = 0; k < token->length; ++k) {
+		if (token->lexeme[k] == '\n') {
+			--line;
+		}
+	}
+	logError(_logger, "Lexical error at line %d: %s", line, message);
+	destroyToken(token);
+	return _throw();
+}
+
+/**
+ * Creates a new string (using heap-memory) with the escape sequences of the
+ * string fragment resolved. The lexeme is a valid fragment, so every "\" is
+ * followed by the escaped character.
+ */
+static char * _unescapeStringFragment(const char * lexeme) {
+	char * string = calloc(1 + strlen(lexeme), sizeof(char));
+	unsigned int length = 0;
+	for (unsigned int k = 0; lexeme[k] != '\0'; ++k) {
+		if (lexeme[k] == '\\') {
+			++k;
+		}
+		string[length++] = lexeme[k];
+	}
+	return string;
+}
+
 /* PUBLIC FUNCTIONS */
 
 CompilationStatus ArithmeticOperatorLexemeAction(TokenLabel label) {
-	Token * token = createToken(_lexicalAnalyzer, label);
-	_logTokenAction(__FUNCTION__, token);
-	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
-	destroyToken(token);
+	return _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, label));
+}
+
+CompilationStatus BeginInterpolationLexemeAction(FlexContext context) {
+	CompilationStatus status = _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, INTERPOLATION_BEGIN));
+	enterLexicalAnalyzerContext(_lexicalAnalyzer, context);
+	return status;
+}
+
+CompilationStatus BeginStringLexemeAction(FlexContext context) {
+	CompilationStatus status = _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, STRING_BEGIN));
+	enterLexicalAnalyzerContext(_lexicalAnalyzer, context);
+	return status;
+}
+
+CompilationStatus BooleanLexemeAction(const bool value) {
+	Token * token = createToken(_lexicalAnalyzer, BOOLEAN);
+	token->semanticValue->boolean = value;
+	return _pushTokenAction(__FUNCTION__, token);
+}
+
+CompilationStatus DelimiterLexemeAction(TokenLabel label) {
+	return _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, label));
+}
+
+CompilationStatus EndInterpolationLexemeAction() {
+	CompilationStatus status = _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, INTERPOLATION_END));
+	leaveLexicalAnalyzerContext(_lexicalAnalyzer);
+	return status;
+}
+
+CompilationStatus EndStringLexemeAction() {
+	CompilationStatus status = _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, STRING_END));
+	leaveLexicalAnalyzerContext(_lexicalAnalyzer);
 	return status;
 }
 
@@ -107,6 +188,12 @@ CompilationStatus EOFLexemeAction() {
 	return status;
 }
 
+CompilationStatus IdentifierLexemeAction() {
+	Token * token = createToken(_lexicalAnalyzer, ID);
+	token->semanticValue->string = strdup(token->lexeme);
+	return _pushTokenAction(__FUNCTION__, token);
+}
+
 CompilationStatus IgnoredLexemeAction() {
 	if (_logIgnoredLexemes) {
 		Token * token = createToken(_lexicalAnalyzer, IGNORED);
@@ -118,11 +205,22 @@ CompilationStatus IgnoredLexemeAction() {
 
 CompilationStatus IntegerLexemeAction() {
 	Token * token = createToken(_lexicalAnalyzer, INTEGER);
-	token->semanticValue->integer = atoi(token->lexeme);
-	_logTokenAction(__FUNCTION__, token);
-	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
-	destroyToken(token);
-	return status;
+	errno = 0;
+	const long value = strtol(token->lexeme, NULL, 10);
+	if (errno == ERANGE || INT_MAX < value) {
+		destroyToken(token);
+		return _throwLexicalError(__FUNCTION__, "the integer exceeds INT_MAX.");
+	}
+	token->semanticValue->integer = (int) value;
+	return _pushTokenAction(__FUNCTION__, token);
+}
+
+CompilationStatus InvalidEscapeLexemeAction() {
+	return _throwLexicalError(__FUNCTION__, "invalid escape sequence (only \\\", \\\\ and \\{ are allowed).");
+}
+
+CompilationStatus KeywordLexemeAction(TokenLabel label) {
+	return _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, label));
 }
 
 CompilationStatus LeaveMultilineCommentLexemeAction() {
@@ -135,12 +233,28 @@ CompilationStatus LeaveMultilineCommentLexemeAction() {
 	return IN_PROGRESS;
 }
 
-CompilationStatus ParenthesisLexemeAction(TokenLabel label) {
-	Token * token = createToken(_lexicalAnalyzer, label);
-	_logTokenAction(__FUNCTION__, token);
-	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
-	destroyToken(token);
-	return status;
+CompilationStatus PunctuationLexemeAction(TokenLabel label) {
+	return _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, label));
+}
+
+CompilationStatus RelationalOperatorLexemeAction(TokenLabel label) {
+	return _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, label));
+}
+
+CompilationStatus StringFragmentLexemeAction() {
+	Token * token = createToken(_lexicalAnalyzer, STRING_FRAGMENT);
+	token->semanticValue->string = _unescapeStringFragment(token->lexeme);
+	char * _value = escape(token->semanticValue->string);
+	logDebugging(_logger, WARNING_COLOR "%s" DEFAULT_COLOR ": unescaped value=%s\"%s\"%s",
+		__FUNCTION__,
+		INFORMATION_COLOR, _value, DEFAULT_COLOR);
+	free(_value);
+	_value = NULL;
+	return _pushTokenAction(__FUNCTION__, token);
+}
+
+CompilationStatus UnitLexemeAction(TokenLabel label) {
+	return _pushTokenAction(__FUNCTION__, createToken(_lexicalAnalyzer, label));
 }
 
 CompilationStatus UnknownLexemeAction() {
@@ -149,4 +263,8 @@ CompilationStatus UnknownLexemeAction() {
 	CompilationStatus status = pushToken(_lexicalAnalyzer, token);
 	destroyToken(token);
 	return FAILED;
+}
+
+CompilationStatus UnterminatedStringLexemeAction() {
+	return _throwLexicalError(__FUNCTION__, "unterminated string (a string cannot contain line breaks nor reach the end of the input).");
 }
