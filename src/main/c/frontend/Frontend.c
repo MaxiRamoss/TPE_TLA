@@ -92,6 +92,10 @@ FlexContext currentLexicalAnalyzerContext(LexicalAnalyzer * lexicalAnalyzer) {
 	return flexCurrentContext(lexicalAnalyzer);
 }
 
+unsigned int currentLexicalAnalyzerLine(LexicalAnalyzer * lexicalAnalyzer) {
+	return yyget_lineno(lexicalAnalyzer->scanner);
+}
+
 void destroyInputBuffer(InputBuffer * inputBuffer) {
 	if (inputBuffer != NULL) {
 		if (inputBuffer->buffer != NULL) {

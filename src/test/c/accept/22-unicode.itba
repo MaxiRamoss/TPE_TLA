@@ -1,0 +1,8 @@
+simulation S { duration 1 h }
+policy ÓmnibusPrimero(road señalizada, integer umbralMínimo, integer umbralMáximo) {
+	if queue(señalizada) ≥ umbralMáximo {
+		extend señalizada by 10 s
+	} else if queue(señalizada) ≤ umbralMínimo and occupancy(señalizada) ≠ 100 {
+		keep
+	}
+}

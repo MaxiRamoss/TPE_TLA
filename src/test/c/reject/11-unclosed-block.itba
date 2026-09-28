@@ -1,0 +1,3 @@
+simulation S { duration 1 h }
+policy Mantener() {
+	keep

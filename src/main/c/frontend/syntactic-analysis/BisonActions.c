@@ -28,6 +28,18 @@ ModuleDestructor initializeBisonActionsModule(CompilerState * compilerState) {
 static void _logSyntacticAnalyzerAction(const char * functionName);
 
 /**
+ * The parameter type of each fundamental type.
+ */
+static const ParameterType _fundamentalParameterTypes[] = {
+	[BOOLEAN_FUNDAMENTAL_TYPE] = BOOLEAN_PARAMETER_TYPE,
+	[DISTANCE_FUNDAMENTAL_TYPE] = DISTANCE_PARAMETER_TYPE,
+	[DURATION_FUNDAMENTAL_TYPE] = DURATION_PARAMETER_TYPE,
+	[INTEGER_FUNDAMENTAL_TYPE] = INTEGER_PARAMETER_TYPE,
+	[SPEED_FUNDAMENTAL_TYPE] = SPEED_PARAMETER_TYPE,
+	[STRING_FUNDAMENTAL_TYPE] = STRING_PARAMETER_TYPE
+};
+
+/**
  * Logs a syntactic-analyzer action in DEBUGGING level.
  */
 static void _logSyntacticAnalyzerAction(const char * functionName) {
@@ -101,6 +113,56 @@ StringParts * AppendInterpolationSemanticAction(StringParts * stringParts, Expre
 	return stringParts;
 }
 
+LightItems * AppendLightItemSemanticAction(LightItems * lightItems, LightItem * lightItem) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	if (lightItems->last == NULL) {
+		lightItems->first = lightItem;
+	}
+	else {
+		lightItems->last->next = lightItem;
+	}
+	lightItems->last = lightItem;
+	return lightItems;
+}
+
+Parameters * AppendParameterSemanticAction(Parameters * parameters, Parameter * parameter) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	if (parameters->last == NULL) {
+		parameters->first = parameter;
+	}
+	else {
+		parameters->last->next = parameter;
+	}
+	parameters->last = parameter;
+	return parameters;
+}
+
+References * AppendReferenceSemanticAction(References * references, Reference * reference) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	ReferenceItem * referenceItem = calloc(1, sizeof(ReferenceItem));
+	referenceItem->reference = reference;
+	if (references->last == NULL) {
+		references->first = referenceItem;
+	}
+	else {
+		references->last->next = referenceItem;
+	}
+	references->last = referenceItem;
+	return references;
+}
+
+Block * AppendStatementSemanticAction(Block * block, Statement * statement) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	if (block->last == NULL) {
+		block->first = statement;
+	}
+	else {
+		block->last->next = statement;
+	}
+	block->last = statement;
+	return block;
+}
+
 Path * AppendWaypointSemanticAction(Path * path, Reference * reference) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Waypoint * waypoint = calloc(1, sizeof(Waypoint));
@@ -113,6 +175,14 @@ Path * AppendWaypointSemanticAction(Path * path, Reference * reference) {
 	}
 	path->last = waypoint;
 	return path;
+}
+
+LightItem * ApplyLightItemSemanticAction(Call * call) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	LightItem * lightItem = calloc(1, sizeof(LightItem));
+	lightItem->call = call;
+	lightItem->type = APPLY_LIGHT_ITEM;
+	return lightItem;
 }
 
 Expression * BinaryExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type) {
@@ -170,14 +240,34 @@ Arguments * EmptyArgumentsSemanticAction() {
 	return calloc(1, sizeof(Arguments));
 }
 
+Block * EmptyBlockSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(Block));
+}
+
 Declarations * EmptyDeclarationsSemanticAction() {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	return calloc(1, sizeof(Declarations));
 }
 
+LightItems * EmptyLightItemsSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(LightItems));
+}
+
+Parameters * EmptyParametersSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(Parameters));
+}
+
 Path * EmptyPathSemanticAction() {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	return calloc(1, sizeof(Path));
+}
+
+References * EmptyReferencesSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return calloc(1, sizeof(References));
 }
 
 StringParts * EmptyStringPartsSemanticAction() {
@@ -191,6 +281,15 @@ Factor * ExpressionFactorSemanticAction(Expression * expression) {
 	factor->expression = expression;
 	factor->type = EXPRESSION_FACTOR;
 	return factor;
+}
+
+Statement * ExtendStatementSemanticAction(Reference * road, Expression * duration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Statement * statement = calloc(1, sizeof(Statement));
+	statement->road = road;
+	statement->duration = duration;
+	statement->type = EXTEND_STATEMENT;
+	return statement;
 }
 
 Expression * FactorExpressionSemanticAction(Factor * factor) {
@@ -222,11 +321,53 @@ FlowDeclaration * FlowDeclarationSemanticAction(Reference * reference, Reference
 	return flowDeclaration;
 }
 
+ParameterType FundamentalParameterTypeSemanticAction(const FundamentalType fundamentalType) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	return _fundamentalParameterTypes[fundamentalType];
+}
+
 Reference * IdentifierReferenceSemanticAction(char * identifier) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Reference * reference = calloc(1, sizeof(Reference));
 	reference->identifier = identifier;
 	return reference;
+}
+
+IfStatement * IfElseIfStatementSemanticAction(Expression * condition, Block * thenBlock, IfStatement * elseIfStatement) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	IfStatement * ifStatement = calloc(1, sizeof(IfStatement));
+	ifStatement->condition = condition;
+	ifStatement->thenBlock = thenBlock;
+	ifStatement->elseIfStatement = elseIfStatement;
+	ifStatement->elseBranchType = IF_ELSE_BRANCH;
+	return ifStatement;
+}
+
+IfStatement * IfElseStatementSemanticAction(Expression * condition, Block * thenBlock, Block * elseBlock) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	IfStatement * ifStatement = calloc(1, sizeof(IfStatement));
+	ifStatement->condition = condition;
+	ifStatement->thenBlock = thenBlock;
+	ifStatement->elseBlock = elseBlock;
+	ifStatement->elseBranchType = BLOCK_ELSE_BRANCH;
+	return ifStatement;
+}
+
+IfStatement * IfStatementSemanticAction(Expression * condition, Block * thenBlock) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	IfStatement * ifStatement = calloc(1, sizeof(IfStatement));
+	ifStatement->condition = condition;
+	ifStatement->thenBlock = thenBlock;
+	ifStatement->elseBranchType = NO_ELSE_BRANCH;
+	return ifStatement;
+}
+
+Statement * IfStatementStatementSemanticAction(IfStatement * ifStatement) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Statement * statement = calloc(1, sizeof(Statement));
+	statement->ifStatement = ifStatement;
+	statement->type = IF_STATEMENT;
+	return statement;
 }
 
 Reference * IndexedReferenceSemanticAction(char * identifier, Expression * index) {
@@ -262,6 +403,39 @@ IntersectionDeclaration * IntersectionDeclarationSemanticAction(Reference * refe
 	return intersectionDeclaration;
 }
 
+Statement * KeepStatementSemanticAction() {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Statement * statement = calloc(1, sizeof(Statement));
+	statement->type = KEEP_STATEMENT;
+	return statement;
+}
+
+Declaration * LightDeclarationDeclarationSemanticAction(LightDeclaration * lightDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->lightDeclaration = lightDeclaration;
+	declaration->type = LIGHT_DECLARATION;
+	return declaration;
+}
+
+LightDeclaration * LightDeclarationSemanticAction(Reference * reference, Reference * intersection, Expression * label, LightItems * items) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	LightDeclaration * lightDeclaration = calloc(1, sizeof(LightDeclaration));
+	lightDeclaration->reference = reference;
+	lightDeclaration->intersection = intersection;
+	lightDeclaration->label = label;
+	lightDeclaration->items = items;
+	return lightDeclaration;
+}
+
+Statement * LogStatementSemanticAction(StringLiteral * message) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Statement * statement = calloc(1, sizeof(Statement));
+	statement->message = message;
+	statement->type = LOG_STATEMENT;
+	return statement;
+}
+
 Factor * MemberAccessFactorSemanticAction(Factor * object, char * member) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
@@ -269,6 +443,40 @@ Factor * MemberAccessFactorSemanticAction(Factor * object, char * member) {
 	factor->member = member;
 	factor->type = MEMBER_ACCESS_FACTOR;
 	return factor;
+}
+
+Parameter * ParameterSemanticAction(const ParameterType type, char * identifier) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Parameter * parameter = calloc(1, sizeof(Parameter));
+	parameter->type = type;
+	parameter->identifier = identifier;
+	return parameter;
+}
+
+LightItem * PhaseLightItemSemanticAction(References * roads, Expression * duration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	LightItem * lightItem = calloc(1, sizeof(LightItem));
+	lightItem->roads = roads;
+	lightItem->duration = duration;
+	lightItem->type = PHASE_LIGHT_ITEM;
+	return lightItem;
+}
+
+Declaration * PolicyDeclarationDeclarationSemanticAction(PolicyDeclaration * policyDeclaration) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	Declaration * declaration = calloc(1, sizeof(Declaration));
+	declaration->policyDeclaration = policyDeclaration;
+	declaration->type = POLICY_DECLARATION;
+	return declaration;
+}
+
+PolicyDeclaration * PolicyDeclarationSemanticAction(char * identifier, Parameters * parameters, Block * block) {
+	_logSyntacticAnalyzerAction(__FUNCTION__);
+	PolicyDeclaration * policyDeclaration = calloc(1, sizeof(PolicyDeclaration));
+	policyDeclaration->identifier = identifier;
+	policyDeclaration->parameters = parameters;
+	policyDeclaration->block = block;
+	return policyDeclaration;
 }
 
 Program * ProgramSemanticAction(Simulation * simulation, Declarations * declarations) {

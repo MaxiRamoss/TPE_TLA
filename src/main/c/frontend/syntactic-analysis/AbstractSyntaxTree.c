@@ -41,6 +41,19 @@ void destroyArguments(Arguments * arguments) {
 	}
 }
 
+void destroyBlock(Block * block) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (block != NULL) {
+		Statement * statement = block->first;
+		while (statement != NULL) {
+			Statement * next = statement->next;
+			destroyStatement(statement);
+			statement = next;
+		}
+		free(block);
+	}
+}
+
 void destroyCall(Call * call) {
 	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
 	if (call != NULL) {
@@ -71,6 +84,12 @@ void destroyDeclaration(Declaration * declaration) {
 				break;
 			case INTERSECTION_DECLARATION:
 				destroyIntersectionDeclaration(declaration->intersectionDeclaration);
+				break;
+			case LIGHT_DECLARATION:
+				destroyLightDeclaration(declaration->lightDeclaration);
+				break;
+			case POLICY_DECLARATION:
+				destroyPolicyDeclaration(declaration->policyDeclaration);
 				break;
 			case ROAD_DECLARATION:
 				destroyRoadDeclaration(declaration->roadDeclaration);
@@ -181,6 +200,28 @@ void destroyFlowDeclaration(FlowDeclaration * flowDeclaration) {
 	}
 }
 
+void destroyIfStatement(IfStatement * ifStatement) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (ifStatement != NULL) {
+		destroyExpression(ifStatement->condition);
+		destroyBlock(ifStatement->thenBlock);
+		switch (ifStatement->elseBranchType) {
+			case BLOCK_ELSE_BRANCH:
+				destroyBlock(ifStatement->elseBlock);
+				break;
+			case IF_ELSE_BRANCH:
+				destroyIfStatement(ifStatement->elseIfStatement);
+				break;
+			case NO_ELSE_BRANCH:
+				break;
+			default:
+				logError(_logger, "The specified else branch type is unknown: %d", ifStatement->elseBranchType);
+				break;
+		}
+		free(ifStatement);
+	}
+}
+
 void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclaration) {
 	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
 	if (intersectionDeclaration != NULL) {
@@ -188,6 +229,70 @@ void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclar
 		destroyPosition(intersectionDeclaration->position);
 		destroyExpression(intersectionDeclaration->label);
 		free(intersectionDeclaration);
+	}
+}
+
+void destroyLightDeclaration(LightDeclaration * lightDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (lightDeclaration != NULL) {
+		destroyReference(lightDeclaration->reference);
+		destroyReference(lightDeclaration->intersection);
+		destroyExpression(lightDeclaration->label);
+		destroyLightItems(lightDeclaration->items);
+		free(lightDeclaration);
+	}
+}
+
+void destroyLightItem(LightItem * lightItem) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (lightItem != NULL) {
+		switch (lightItem->type) {
+			case APPLY_LIGHT_ITEM:
+				destroyCall(lightItem->call);
+				break;
+			case PHASE_LIGHT_ITEM:
+				destroyReferences(lightItem->roads);
+				destroyExpression(lightItem->duration);
+				break;
+			default:
+				logError(_logger, "The specified light item type is unknown: %d", lightItem->type);
+				break;
+		}
+		free(lightItem);
+	}
+}
+
+void destroyLightItems(LightItems * lightItems) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (lightItems != NULL) {
+		LightItem * lightItem = lightItems->first;
+		while (lightItem != NULL) {
+			LightItem * next = lightItem->next;
+			destroyLightItem(lightItem);
+			lightItem = next;
+		}
+		free(lightItems);
+	}
+}
+
+void destroyParameter(Parameter * parameter) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (parameter != NULL) {
+		free(parameter->identifier);
+		free(parameter);
+	}
+}
+
+void destroyParameters(Parameters * parameters) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (parameters != NULL) {
+		Parameter * parameter = parameters->first;
+		while (parameter != NULL) {
+			Parameter * next = parameter->next;
+			destroyParameter(parameter);
+			parameter = next;
+		}
+		free(parameters);
 	}
 }
 
@@ -201,6 +306,16 @@ void destroyPath(Path * path) {
 			waypoint = next;
 		}
 		free(path);
+	}
+}
+
+void destroyPolicyDeclaration(PolicyDeclaration * policyDeclaration) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (policyDeclaration != NULL) {
+		free(policyDeclaration->identifier);
+		destroyParameters(policyDeclaration->parameters);
+		destroyBlock(policyDeclaration->block);
+		free(policyDeclaration);
 	}
 }
 
@@ -249,6 +364,27 @@ void destroyReference(Reference * reference) {
 	}
 }
 
+void destroyReferenceItem(ReferenceItem * referenceItem) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (referenceItem != NULL) {
+		destroyReference(referenceItem->reference);
+		free(referenceItem);
+	}
+}
+
+void destroyReferences(References * references) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (references != NULL) {
+		ReferenceItem * referenceItem = references->first;
+		while (referenceItem != NULL) {
+			ReferenceItem * next = referenceItem->next;
+			destroyReferenceItem(referenceItem);
+			referenceItem = next;
+		}
+		free(references);
+	}
+}
+
 void destroyRoadDeclaration(RoadDeclaration * roadDeclaration) {
 	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
 	if (roadDeclaration != NULL) {
@@ -279,6 +415,30 @@ void destroySimulation(Simulation * simulation) {
 		destroyExpression(simulation->label);
 		destroyExpression(simulation->duration);
 		free(simulation);
+	}
+}
+
+void destroyStatement(Statement * statement) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (statement != NULL) {
+		switch (statement->type) {
+			case EXTEND_STATEMENT:
+				destroyReference(statement->road);
+				destroyExpression(statement->duration);
+				break;
+			case IF_STATEMENT:
+				destroyIfStatement(statement->ifStatement);
+				break;
+			case KEEP_STATEMENT:
+				break;
+			case LOG_STATEMENT:
+				destroyStringLiteral(statement->message);
+				break;
+			default:
+				logError(_logger, "The specified statement type is unknown: %d", statement->type);
+				break;
+		}
+		free(statement);
 	}
 }
 

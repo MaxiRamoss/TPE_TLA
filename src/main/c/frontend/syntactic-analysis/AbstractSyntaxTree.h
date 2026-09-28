@@ -17,15 +17,20 @@ ModuleDestructor initializeAbstractSyntaxTreeModule();
 
 typedef enum DeclarationType DeclarationType;
 typedef enum Direction Direction;
+typedef enum ElseBranchType ElseBranchType;
 typedef enum ExpressionType ExpressionType;
 typedef enum FactorType FactorType;
 typedef enum FundamentalType FundamentalType;
+typedef enum LightItemType LightItemType;
+typedef enum ParameterType ParameterType;
 typedef enum PositionType PositionType;
+typedef enum StatementType StatementType;
 typedef enum StringPartType StringPartType;
 typedef enum Unit Unit;
 
 typedef struct Argument Argument;
 typedef struct Arguments Arguments;
+typedef struct Block Block;
 typedef struct Call Call;
 typedef struct ConstantDeclaration ConstantDeclaration;
 typedef struct Declaration Declaration;
@@ -33,15 +38,25 @@ typedef struct Declarations Declarations;
 typedef struct Expression Expression;
 typedef struct Factor Factor;
 typedef struct FlowDeclaration FlowDeclaration;
+typedef struct IfStatement IfStatement;
 typedef struct IntersectionDeclaration IntersectionDeclaration;
+typedef struct LightDeclaration LightDeclaration;
+typedef struct LightItem LightItem;
+typedef struct LightItems LightItems;
+typedef struct Parameter Parameter;
+typedef struct Parameters Parameters;
 typedef struct Path Path;
+typedef struct PolicyDeclaration PolicyDeclaration;
 typedef struct Position Position;
 typedef struct Program Program;
 typedef struct Quantity Quantity;
 typedef struct Reference Reference;
+typedef struct ReferenceItem ReferenceItem;
+typedef struct References References;
 typedef struct RoadDeclaration RoadDeclaration;
 typedef struct RouteDeclaration RouteDeclaration;
 typedef struct Simulation Simulation;
+typedef struct Statement Statement;
 typedef struct StringLiteral StringLiteral;
 typedef struct StringPart StringPart;
 typedef struct StringParts StringParts;
@@ -57,6 +72,8 @@ enum DeclarationType {
 	CONSTANT_DECLARATION,
 	FLOW_DECLARATION,
 	INTERSECTION_DECLARATION,
+	LIGHT_DECLARATION,
+	POLICY_DECLARATION,
 	ROAD_DECLARATION,
 	ROUTE_DECLARATION
 };
@@ -66,6 +83,12 @@ enum Direction {
 	NORTH_DIRECTION,
 	SOUTH_DIRECTION,
 	WEST_DIRECTION
+};
+
+enum ElseBranchType {
+	BLOCK_ELSE_BRANCH,
+	IF_ELSE_BRANCH,
+	NO_ELSE_BRANCH
 };
 
 enum ExpressionType {
@@ -106,9 +129,38 @@ enum FundamentalType {
 	STRING_FUNDAMENTAL_TYPE
 };
 
+enum LightItemType {
+	APPLY_LIGHT_ITEM,
+	PHASE_LIGHT_ITEM
+};
+
+/**
+ * The type of a parameter of a policy: a fundamental type, or an entity.
+ */
+enum ParameterType {
+	BOOLEAN_PARAMETER_TYPE,
+	DISTANCE_PARAMETER_TYPE,
+	DURATION_PARAMETER_TYPE,
+	FLOW_PARAMETER_TYPE,
+	INTEGER_PARAMETER_TYPE,
+	INTERSECTION_PARAMETER_TYPE,
+	LIGHT_PARAMETER_TYPE,
+	ROAD_PARAMETER_TYPE,
+	ROUTE_PARAMETER_TYPE,
+	SPEED_PARAMETER_TYPE,
+	STRING_PARAMETER_TYPE
+};
+
 enum PositionType {
 	ABSOLUTE_POSITION,
 	RELATIVE_POSITION
+};
+
+enum StatementType {
+	EXTEND_STATEMENT,
+	IF_STATEMENT,
+	KEEP_STATEMENT,
+	LOG_STATEMENT
 };
 
 enum StringPartType {
@@ -151,6 +203,8 @@ struct Declaration {
 		ConstantDeclaration * constantDeclaration;
 		FlowDeclaration * flowDeclaration;
 		IntersectionDeclaration * intersectionDeclaration;
+		LightDeclaration * lightDeclaration;
+		PolicyDeclaration * policyDeclaration;
 		RoadDeclaration * roadDeclaration;
 		RouteDeclaration * routeDeclaration;
 	};
@@ -199,6 +253,52 @@ struct RoadDeclaration {
 	Expression * label;
 };
 
+struct LightDeclaration {
+	Reference * reference;
+	/** The intersection where the light is. */
+	Reference * intersection;
+	/** NULL if the light has no label. */
+	Expression * label;
+	LightItems * items;
+};
+
+/**
+ * The phases and policies of a light, in order of appearance. The grammar
+ * ensures that there is at least one item.
+ */
+struct LightItems {
+	LightItem * first;
+	LightItem * last;
+};
+
+struct LightItem {
+	union {
+		/** A phase: the roads that it enables, and its duration. */
+		struct {
+			References * roads;
+			Expression * duration;
+		};
+		/** The application of a policy. */
+		Call * call;
+	};
+	LightItemType type;
+	LightItem * next;
+};
+
+/**
+ * A list of references, in order of appearance. The grammar ensures that
+ * there is at least one.
+ */
+struct References {
+	ReferenceItem * first;
+	ReferenceItem * last;
+};
+
+struct ReferenceItem {
+	Reference * reference;
+	ReferenceItem * next;
+};
+
 struct RouteDeclaration {
 	Reference * reference;
 	Path * path;
@@ -232,6 +332,64 @@ struct FlowDeclaration {
 	Expression * from;
 	/** NULL if the flow has no window (i.e., it lasts the entire simulation). */
 	Expression * to;
+};
+
+struct PolicyDeclaration {
+	char * identifier;
+	Parameters * parameters;
+	Block * block;
+};
+
+/**
+ * A list of parameters, in order of appearance. It may be empty.
+ */
+struct Parameters {
+	Parameter * first;
+	Parameter * last;
+};
+
+struct Parameter {
+	ParameterType type;
+	char * identifier;
+	Parameter * next;
+};
+
+/**
+ * A list of statements, in order of appearance. It may be empty.
+ */
+struct Block {
+	Statement * first;
+	Statement * last;
+};
+
+struct Statement {
+	union {
+		IfStatement * ifStatement;
+		/** An extension of the current phase, if it enables the road. */
+		struct {
+			Reference * road;
+			Expression * duration;
+		};
+		/** The message to log. */
+		StringLiteral * message;
+	};
+	StatementType type;
+	Statement * next;
+};
+
+/**
+ * An "else if" chain is nested: the "else" branch of each "if" is the next
+ * "if" of the chain.
+ */
+struct IfStatement {
+	Expression * condition;
+	Block * thenBlock;
+	/** Both NULL if there is no "else" branch. */
+	union {
+		Block * elseBlock;
+		IfStatement * elseIfStatement;
+	};
+	ElseBranchType elseBranchType;
 };
 
 struct Reference {
@@ -319,6 +477,7 @@ struct StringPart {
 
 void destroyArgument(Argument * argument);
 void destroyArguments(Arguments * arguments);
+void destroyBlock(Block * block);
 void destroyCall(Call * call);
 void destroyConstantDeclaration(ConstantDeclaration * constantDeclaration);
 void destroyDeclaration(Declaration * declaration);
@@ -326,15 +485,25 @@ void destroyDeclarations(Declarations * declarations);
 void destroyExpression(Expression * expression);
 void destroyFactor(Factor * factor);
 void destroyFlowDeclaration(FlowDeclaration * flowDeclaration);
+void destroyIfStatement(IfStatement * ifStatement);
 void destroyIntersectionDeclaration(IntersectionDeclaration * intersectionDeclaration);
+void destroyLightDeclaration(LightDeclaration * lightDeclaration);
+void destroyLightItem(LightItem * lightItem);
+void destroyLightItems(LightItems * lightItems);
+void destroyParameter(Parameter * parameter);
+void destroyParameters(Parameters * parameters);
 void destroyPath(Path * path);
+void destroyPolicyDeclaration(PolicyDeclaration * policyDeclaration);
 void destroyPosition(Position * position);
 void destroyProgram(Program * program);
 void destroyQuantity(Quantity * quantity);
 void destroyReference(Reference * reference);
+void destroyReferenceItem(ReferenceItem * referenceItem);
+void destroyReferences(References * references);
 void destroyRoadDeclaration(RoadDeclaration * roadDeclaration);
 void destroyRouteDeclaration(RouteDeclaration * routeDeclaration);
 void destroySimulation(Simulation * simulation);
+void destroyStatement(Statement * statement);
 void destroyStringLiteral(StringLiteral * stringLiteral);
 void destroyStringPart(StringPart * stringPart);
 void destroyStringParts(StringParts * stringParts);

@@ -1,0 +1,16 @@
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road AB from A to B
+road CB from C to B
+policy Extender(road principal, integer umbral) {
+	if queue(principal) > umbral {
+		extend principal by 10 s
+	}
+}
+light L at B {
+	phase green for AB during 30 s
+	phase green for CB during 25 s
+	apply Extender(AB, 15)
+}

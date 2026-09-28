@@ -40,8 +40,8 @@ extern CompilationStatus UnterminatedStringLexemeAction();
 
 /**
  * Flex contexts (a.k.a. start conditions). Flex numbers them in order of
- * declaration (INITIAL is 0), and "_toContextString" in "FlexActions.c"
- * depends on that order.
+ * declaration (INITIAL is 0), and "_toConstructString" and "_toContextString"
+ * in "FlexActions.c" depend on that order.
  *
  * @see https://westes.github.io/flex/manual/Start-Conditions.html
  */
@@ -52,7 +52,9 @@ extern CompilationStatus UnterminatedStringLexemeAction();
 /**
  * Reusable patterns. A letter is either ASCII or a latin letter with
  * diacritics in the range U+00C0-U+00FF, except U+00D7 (×) and U+00F7 (÷),
- * encoded in UTF-8.
+ * encoded in UTF-8. A multibyte character is any non-ASCII character encoded
+ * in UTF-8, so an unknown character is reported whole, not only its first
+ * byte.
  *
  * @see https://westes.github.io/flex/manual/Matching.html
  * @see https://westes.github.io/flex/manual/Patterns.html
@@ -60,6 +62,7 @@ extern CompilationStatus UnterminatedStringLexemeAction();
 digit				[0-9]
 letter				[A-Za-z]|\xC3[\x80-\x96\x98-\xB6\xB8-\xBF]
 identifier			{letter}({letter}|{digit}|_)*
+multibyteCharacter	[\xC2-\xDF][\x80-\xBF]|[\xE0-\xEF][\x80-\xBF]{2}|[\xF0-\xF4][\x80-\xBF]{3}
 whitespace			[[:space:]]+
 
 %%
@@ -84,7 +87,6 @@ whitespace			[[:space:]]+
 <STRING>([^"\\{\n]|\\["\\{])+		{ return StringFragmentLexemeAction(); }
 <STRING>\\							{ return InvalidEscapeLexemeAction(); }
 <STRING>\n							{ return UnterminatedStringLexemeAction(); }
-<STRING,INTERPOLATION><<EOF>>		{ return UnterminatedStringLexemeAction(); }
 
 <INTERPOLATION>"}"					{ return EndInterpolationLexemeAction(); }
 <INTERPOLATION>[[:space:]]*\n[[:space:]]*	{ return UnterminatedStringLexemeAction(); }
@@ -178,7 +180,7 @@ whitespace			[[:space:]]+
 {identifier}						{ return IdentifierLexemeAction(); }
 
 {whitespace}						{ return IgnoredLexemeAction(); }
-.									{ return UnknownLexemeAction(); }
+{multibyteCharacter}|.				{ return UnknownLexemeAction(); }
 
 <<EOF>>								{ return EOFLexemeAction(); }
 

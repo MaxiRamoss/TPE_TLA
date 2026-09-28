@@ -6,26 +6,32 @@
 #include "BisonActions.h"
 #include <string.h>
 
+/* IMPORTED FUNCTIONS */
+
+extern bool isExceptionThrown();
+
 /**
  * The error reporting function for Bison parser. It logs the message of Bison,
  * without its "syntax error, " prefix, along with the line of the token that
  * provoked the error ("pushToken" sets the location of each token). The
- * lexical-analyzer pushes an EXCEPTION only to halt the parser (so it releases
- * its stack) after reporting a lexical error, which is not reported again.
+ * lexical-analyzer throws an exception (i.e., it pushes an EXCEPTION token)
+ * only to halt the parser (so it releases its stack) after reporting a lexical
+ * error, which is not reported again.
  *
  * @see https://www.gnu.org/software/bison/manual/html_node/Error-Reporting-Function.html
  * @see https://www.gnu.org/software/bison/manual/html_node/Tracking-Locations.html
  */
 void yyerror(const YYLTYPE * location, const char * message) {
+	if (isExceptionThrown()) {
+		return;
+	}
 	const char * prefix = "syntax error, ";
 	if (strncmp(message, prefix, strlen(prefix)) == 0) {
 		message += strlen(prefix);
 	}
-	if (strstr(message, "unexpected EXCEPTION") == NULL) {
-		Logger * logger = createLogger("SyntacticAnalyzer");
-		logError(logger, "Syntax error at line %d: %s", location->first_line, message);
-		destroyLogger(logger);
-	}
+	Logger * logger = createLogger("SyntacticAnalyzer");
+	logError(logger, "Syntax error at line %d: %s", location->first_line, message);
+	destroyLogger(logger);
 }
 
 %}
@@ -48,6 +54,7 @@ void yyerror(const YYLTYPE * location, const char * message) {
 	/** Non-terminals. */
 
 	Arguments * arguments;
+	Block * block;
 	Call * call;
 	ConstantDeclaration * constantDeclaration;
 	Declaration * declaration;
@@ -57,14 +64,24 @@ void yyerror(const YYLTYPE * location, const char * message) {
 	Factor * factor;
 	FlowDeclaration * flowDeclaration;
 	FundamentalType fundamentalType;
+	IfStatement * ifStatement;
 	IntersectionDeclaration * intersectionDeclaration;
+	LightDeclaration * lightDeclaration;
+	LightItem * lightItem;
+	LightItems * lightItems;
+	Parameter * parameter;
+	Parameters * parameters;
+	ParameterType parameterType;
 	Path * path;
+	PolicyDeclaration * policyDeclaration;
 	Position * position;
 	Program * program;
 	Reference * reference;
+	References * references;
 	RoadDeclaration * roadDeclaration;
 	RouteDeclaration * routeDeclaration;
 	Simulation * simulation;
+	Statement * statement;
 	StringLiteral * stringLiteral;
 	StringParts * stringParts;
 	Unit unit;
@@ -89,6 +106,7 @@ void yyerror(const YYLTYPE * location, const char * message) {
  */
 %destructor { free($$); } <string>
 %destructor { destroyArguments($$); } <arguments>
+%destructor { destroyBlock($$); } <block>
 %destructor { destroyCall($$); } <call>
 %destructor { destroyConstantDeclaration($$); } <constantDeclaration>
 %destructor { destroyDeclaration($$); } <declaration>
@@ -96,13 +114,22 @@ void yyerror(const YYLTYPE * location, const char * message) {
 %destructor { destroyExpression($$); } <expression>
 %destructor { destroyFactor($$); } <factor>
 %destructor { destroyFlowDeclaration($$); } <flowDeclaration>
+%destructor { destroyIfStatement($$); } <ifStatement>
 %destructor { destroyIntersectionDeclaration($$); } <intersectionDeclaration>
+%destructor { destroyLightDeclaration($$); } <lightDeclaration>
+%destructor { destroyLightItem($$); } <lightItem>
+%destructor { destroyLightItems($$); } <lightItems>
+%destructor { destroyParameter($$); } <parameter>
+%destructor { destroyParameters($$); } <parameters>
 %destructor { destroyPath($$); } <path>
+%destructor { destroyPolicyDeclaration($$); } <policyDeclaration>
 %destructor { destroyPosition($$); } <position>
 %destructor { destroyReference($$); } <reference>
+%destructor { destroyReferences($$); } <references>
 %destructor { destroyRoadDeclaration($$); } <roadDeclaration>
 %destructor { destroyRouteDeclaration($$); } <routeDeclaration>
 %destructor { destroySimulation($$); } <simulation>
+%destructor { destroyStatement($$); } <statement>
 %destructor { destroyStringLiteral($$); } <stringLiteral>
 %destructor { destroyStringParts($$); } <stringParts>
 %destructor { destroyExpression($$.from); destroyExpression($$.to); } <window>
@@ -220,6 +247,7 @@ void yyerror(const YYLTYPE * location, const char * message) {
 
 /** Non-terminals. */
 %type <arguments> arguments argumentsOpt
+%type <block> block statements
 %type <call> call
 %type <constantDeclaration> constantDeclaration
 %type <declaration> declaration
@@ -229,14 +257,24 @@ void yyerror(const YYLTYPE * location, const char * message) {
 %type <factor> factor
 %type <flowDeclaration> flowDeclaration
 %type <fundamentalType> fundamentalType
+%type <ifStatement> ifStatement
 %type <intersectionDeclaration> intersectionDeclaration
+%type <lightDeclaration> lightDeclaration
+%type <lightItem> lightItem
+%type <lightItems> lightItems
+%type <parameter> parameter
+%type <parameters> parameters parametersOpt
+%type <parameterType> type
 %type <path> path
+%type <policyDeclaration> policyDeclaration
 %type <position> position
 %type <program> program
 %type <reference> reference
+%type <references> references
 %type <roadDeclaration> roadDeclaration
 %type <routeDeclaration> routeDeclaration
 %type <simulation> simulation
+%type <statement> statement
 %type <stringLiteral> string
 %type <stringParts> stringParts
 %type <unit> unit
@@ -274,8 +312,10 @@ declarations: %empty											{ $$ = EmptyDeclarationsSemanticAction(); }
 declaration: constantDeclaration								{ $$ = ConstantDeclarationDeclarationSemanticAction($1); }
 	| intersectionDeclaration									{ $$ = IntersectionDeclarationDeclarationSemanticAction($1); }
 	| roadDeclaration											{ $$ = RoadDeclarationDeclarationSemanticAction($1); }
+	| lightDeclaration											{ $$ = LightDeclarationDeclarationSemanticAction($1); }
 	| routeDeclaration											{ $$ = RouteDeclarationDeclarationSemanticAction($1); }
 	| flowDeclaration											{ $$ = FlowDeclarationDeclarationSemanticAction($1); }
+	| policyDeclaration											{ $$ = PolicyDeclarationDeclarationSemanticAction($1); }
 	;
 
 reference: ID													{ $$ = IdentifierReferenceSemanticAction($1); }
@@ -321,6 +361,21 @@ limitOpt: %empty												{ $$ = NULL; }
 	| LIMIT expression											{ $$ = $2; }
 	;
 
+lightDeclaration: LIGHT reference AT reference labelOpt OPEN_BRACE lightItems CLOSE_BRACE	{ $$ = LightDeclarationSemanticAction($2, $4, $5, $7); }
+	;
+
+lightItems: lightItem											{ $$ = AppendLightItemSemanticAction(EmptyLightItemsSemanticAction(), $1); }
+	| lightItems lightItem										{ $$ = AppendLightItemSemanticAction($1, $2); }
+	;
+
+lightItem: PHASE GREEN FOR references DURING expression			{ $$ = PhaseLightItemSemanticAction($4, $6); }
+	| APPLY call												{ $$ = ApplyLightItemSemanticAction($2); }
+	;
+
+references: reference											{ $$ = AppendReferenceSemanticAction(EmptyReferencesSemanticAction(), $1); }
+	| references COMMA reference								{ $$ = AppendReferenceSemanticAction($1, $3); }
+	;
+
 routeDeclaration: ROUTE reference EQUAL path labelOpt			{ $$ = RouteDeclarationSemanticAction($2, $4, $5); }
 	;
 
@@ -333,6 +388,46 @@ flowDeclaration: FLOW reference ALONG reference labelOpt OPEN_BRACE SPAWN expres
 
 windowOpt: %empty												{ $$.from = NULL; $$.to = NULL; }
 	| FROM expression TO expression								{ $$.from = $2; $$.to = $4; }
+	;
+
+policyDeclaration: POLICY ID OPEN_PARENTHESIS parametersOpt CLOSE_PARENTHESIS block	{ $$ = PolicyDeclarationSemanticAction($2, $4, $6); }
+	;
+
+parametersOpt: %empty											{ $$ = EmptyParametersSemanticAction(); }
+	| parameters												{ $$ = $1; }
+	;
+
+parameters: parameter											{ $$ = AppendParameterSemanticAction(EmptyParametersSemanticAction(), $1); }
+	| parameters COMMA parameter								{ $$ = AppendParameterSemanticAction($1, $3); }
+	;
+
+parameter: type ID												{ $$ = ParameterSemanticAction($1, $2); }
+	;
+
+type: fundamentalType											{ $$ = FundamentalParameterTypeSemanticAction($1); }
+	| INTERSECTION												{ $$ = INTERSECTION_PARAMETER_TYPE; }
+	| ROAD														{ $$ = ROAD_PARAMETER_TYPE; }
+	| LIGHT														{ $$ = LIGHT_PARAMETER_TYPE; }
+	| ROUTE														{ $$ = ROUTE_PARAMETER_TYPE; }
+	| FLOW														{ $$ = FLOW_PARAMETER_TYPE; }
+	;
+
+block: OPEN_BRACE statements CLOSE_BRACE						{ $$ = $2; }
+	;
+
+statements: %empty												{ $$ = EmptyBlockSemanticAction(); }
+	| statements statement										{ $$ = AppendStatementSemanticAction($1, $2); }
+	;
+
+statement: ifStatement											{ $$ = IfStatementStatementSemanticAction($1); }
+	| EXTEND reference BY expression							{ $$ = ExtendStatementSemanticAction($2, $4); }
+	| KEEP														{ $$ = KeepStatementSemanticAction(); }
+	| LOG string												{ $$ = LogStatementSemanticAction($2); }
+	;
+
+ifStatement: IF expression block								{ $$ = IfStatementSemanticAction($2, $3); }
+	| IF expression block ELSE block							{ $$ = IfElseStatementSemanticAction($2, $3, $5); }
+	| IF expression block ELSE ifStatement						{ $$ = IfElseIfStatementSemanticAction($2, $3, $5); }
 	;
 
 expression: expression[left] OR expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, DISJUNCTION); }

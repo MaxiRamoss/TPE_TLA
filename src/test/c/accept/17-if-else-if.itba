@@ -1,0 +1,10 @@
+simulation S { duration 1 h }
+policy Escalonada(road principal) {
+	if queue(principal) > 10 {
+		extend principal by 10 s
+	} else if queue(principal) > 5 {
+		extend principal by 5 s
+	} else {
+		keep
+	}
+}

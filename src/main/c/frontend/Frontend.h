@@ -42,6 +42,12 @@ Token * createToken(LexicalAnalyzer * lexicalAnalyzer, TokenLabel label);
 FlexContext currentLexicalAnalyzerContext(LexicalAnalyzer * lexicalAnalyzer);
 
 /**
+ * Returns the current line of the lexical-analyzer, that is, the line where
+ * the current lexeme ends.
+ */
+unsigned int currentLexicalAnalyzerLine(LexicalAnalyzer * lexicalAnalyzer);
+
+/**
  * Destroys an input buffer.
  */
 void destroyInputBuffer(InputBuffer * inputBuffer);

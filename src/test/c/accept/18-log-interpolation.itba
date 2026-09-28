@@ -1,0 +1,4 @@
+simulation S { duration 1 h }
+policy Registro(road principal) {
+	log "Cola {queue(principal)} a los {elapsed}"
+}
