@@ -6,9 +6,8 @@
 /* MODULE INTERNAL STATE */
 
 /**
- * An error already reported. When the unrolling analyzes the same
- * declaration more than once, an identical error (same line and message) is
- * reported only once (spec-v3 D15).
+ * The unrolling analyzes a declaration once per iteration, so an identical
+ * error (same line and message) is reported only once.
  */
 typedef struct ReportedError ReportedError;
 
@@ -88,15 +87,12 @@ static void _validatePositions();
 static ValueType _valueTypeOfFundamentalType(const FundamentalType type);
 static ValueType _valueTypeOfParameterType(const ParameterType type);
 
-/** The default speed limit of a road (spec-v3 D12): 40 km/h, in m/h. */
+/** 40 km/h, in m/h. */
 static const int _defaultLimit = 40000;
 
 /**
- * Analyzes the aggregator of a metric (V17): its name, and its arguments,
- * which are checked in the context of the event of the metric. "count" has
- * no arguments, and the others have one, an integer or a magnitude, which
- * defines the unit of the result. An unknown aggregator has its arguments
- * checked anyway, to report their own errors.
+ * The arguments of an unknown aggregator are checked anyway, to report their
+ * own errors.
  */
 static void _analyzeAggregator(Call * call, const ExecutionContext context, Metric * metric, const char * owner) {
 	bool known = false;
@@ -140,11 +136,7 @@ static void _analyzeAggregator(Call * call, const ExecutionContext context, Metr
 	}
 }
 
-/**
- * Analyzes a constant: its value is folded, and its type must be the declared
- * one (V04). A constant with an error has an ERROR value, so its references
- * produce no more errors.
- */
+/** A constant with an error has an ERROR value, so its uses do not cascade. */
 static void _analyzeConstant(const ConstantDeclaration * declaration, const int line) {
 	const ValueType type = _valueTypeOfFundamentalType(declaration->type);
 	char * name = _resolveDeclaredName(declaration->reference, CONSTANT_SYMBOL, type, line);
@@ -193,20 +185,13 @@ static void _analyzeDeclaration(const Declaration * declaration) {
 	}
 }
 
-/**
- * Analyzes a list of declarations, in order of appearance (spec-v3 D13).
- */
+/** A single pass in order: a name is only visible after its declaration. */
 static void _analyzeDeclarations(const Declarations * declarations) {
 	for (const Declaration * declaration = declarations->first; declaration != NULL; declaration = declaration->next) {
 		_analyzeDeclaration(declaration);
 	}
 }
 
-/**
- * Analyzes a flow: its spawn and its period must be positive (V07). Without a
- * window, it lasts the entire simulation; with one, it must start before it
- * ends (V10).
- */
 static void _analyzeFlow(const FlowDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, FLOW_SYMBOL, ERROR_VALUE_TYPE, line);
 	char * owner = _describe(FLOW_SYMBOL, name, declaration->reference);
@@ -245,11 +230,9 @@ static void _analyzeFlow(const FlowDeclaration * declaration, const int line) {
 }
 
 /**
- * Unrolls a "for" (spec-v3 §3.3): for each value of the inclusive range, the
- * body is analyzed with the loop variable bound to it, in a new scope. If the
- * range has an error, or the variable is a duplicate, the body is analyzed
- * only once, with the variable bound to an ERROR value, so its errors are
- * reported without cascading (spec-v3 D15).
+ * If the range has an error or the variable is a duplicate, the body is
+ * analyzed once, with the variable bound to an ERROR value, so it does not
+ * cascade.
  */
 static void _analyzeFor(const ForDeclaration * declaration, const int line) {
 	char * owner = describeSymbol(LOOP_VARIABLE_SYMBOL, declaration->variable);
@@ -277,10 +260,6 @@ static void _analyzeFor(const ForDeclaration * declaration, const int line) {
 	free(owner);
 }
 
-/**
- * Analyzes an intersection: its position, in m (invalid if it has an error),
- * and its label.
- */
 static void _analyzeIntersection(const IntersectionDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, INTERSECTION_SYMBOL, ERROR_VALUE_TYPE, line);
 	char * owner = _describe(INTERSECTION_SYMBOL, name, declaration->reference);
@@ -302,10 +281,8 @@ static void _analyzeIntersection(const IntersectionDeclaration * declaration, co
 }
 
 /**
- * Analyzes a light: its intersection, the roads and the duration of each
- * phase (which must be positive, V07), and the policy of each "apply" with
- * its arguments, which must match its parameters (V14). The relation between
- * its phases and its intersection is validated later, on the model.
+ * Its phases are checked against the roads that enter its intersection at the
+ * end, because those roads may be declared after the light.
  */
 static void _analyzeLight(const LightDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, LIGHT_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -385,11 +362,8 @@ static void _analyzeLight(const LightDeclaration * declaration, const int line) 
 }
 
 /**
- * Analyzes a metric: its event must be "tick" or "arrival" (V18), and its
- * aggregator is analyzed in the context of that event (spec-v3 §3.5). With
- * an unknown event, the context is "arrival", the most permissive one, so it
- * produces no more errors. Each analysis of the declaration is a new
- * instance (spec-v3 §3.3).
+ * With an unknown event, the aggregator is checked as "on arrival", the most
+ * permissive context, so the error does not cascade.
  */
 static void _analyzeMetric(MetricDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, METRIC_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -424,10 +398,8 @@ static void _analyzeMetric(MetricDeclaration * declaration, const int line) {
 }
 
 /**
- * Analyzes a policy (spec-v3 §3.2): its name is declared first, so it is
- * visible from its body. Its parameters are declared in a new scope, from
- * which its body sees them and the global symbols declared before it (D13).
- * Its body is checked even if the policy is never applied.
+ * Its name is declared before its body is checked, so the body sees it. The
+ * body is checked even if the policy is never applied.
  */
 static void _analyzePolicy(PolicyDeclaration * declaration, const int line) {
 	char * owner = describeSymbol(POLICY_SYMBOL, declaration->identifier);
@@ -461,13 +433,7 @@ static void _analyzePolicy(PolicyDeclaration * declaration, const int line) {
 	free(owner);
 }
 
-/**
- * Computes the position of an intersection, in m: absolute, or relative to
- * another intersection (Y grows towards the north, and X towards the east).
- * Returns false if the position is invalid: it has an error, or it is
- * relative to an intersection whose position is invalid (which produces no
- * more errors).
- */
+/** A position relative to an invalid one is invalid too, with no new error. */
 static bool _analyzePosition(const Position * position, Intersection * intersection, const char * owner) {
 	if (position->type == ABSOLUTE_POSITION) {
 		const bool validX = _evaluateInteger(position->x, DISTANCE_VALUE_TYPE, "the x coordinate of", owner, &intersection->x);
@@ -498,12 +464,6 @@ static bool _analyzePosition(const Position * position, Intersection * intersect
 	return true;
 }
 
-/**
- * Analyzes a road: its intersections, which must be different (V07), its
- * length (explicit and positive, or else the euclidean distance rounded to
- * the meter), its speed limit (positive, and 40 km/h by default), its cells
- * and its label. The implicit length needs two valid positions.
- */
 static void _analyzeRoad(const RoadDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, ROAD_SYMBOL, ERROR_VALUE_TYPE, line);
 	char * owner = _describe(ROAD_SYMBOL, name, declaration->reference);
@@ -549,8 +509,8 @@ static void _analyzeRoad(const RoadDeclaration * declaration, const int line) {
 }
 
 /**
- * Analyzes a route: its waypoints are intersections. The roads of its legs
- * are resolved later, on the model, so they can be declared after it.
+ * The roads of its legs are resolved at the end, so they may be declared after
+ * the route.
  */
 static void _analyzeRoute(const RouteDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, ROUTE_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -580,9 +540,7 @@ static void _analyzeRoute(const RouteDeclaration * declaration, const int line) 
 	free(owner);
 }
 
-/**
- * Analyzes the header of the program. The simulation is not a symbol.
- */
+/** The simulation is not a symbol. */
 static void _analyzeSimulation(const Simulation * simulation) {
 	char * owner = concatenate(3, "simulation \"", simulation->identifier, "\"");
 	_model->simulation.id = concatenate(1, simulation->identifier);
@@ -591,21 +549,12 @@ static void _analyzeSimulation(const Simulation * simulation) {
 	free(owner);
 }
 
-/**
- * The number of cells of a road (spec-v3 §4.1): its length divided by 7.5 m,
- * rounded, and at least 1.
- */
+/** The length divided by 7.5 m, rounded, and at least 1. */
 static int _cells(const int length) {
 	const long long cells = (4LL * length + 15) / 30;
 	return cells < 1 ? 1 : (int) cells;
 }
 
-/**
- * Checks the arguments of an "apply" against the parameters of its policy
- * (V14): their number, and the type of each one, which must be the type of
- * its parameter (for an entity, its class). An argument with an error
- * produces no more errors.
- */
 static void _checkApplication(const PolicyApplication * application, const Call * call, const char * owner) {
 	const Policy * policy = application->policy;
 	if (application->argumentCount != policy->parameterCount) {
@@ -626,11 +575,6 @@ static void _checkApplication(const PolicyApplication * application, const Call 
 	}
 }
 
-/**
- * Checks that a new element of an array has the same class as the others
- * and, if it is a constant, the same type (V03). The subject describes the
- * element (e.g., '"X[1]"').
- */
 static bool _checkArrayElement(const Symbol * base, const char * subject, const SymbolClass symbolClass, const ValueType type, const int line) {
 	if (base->elementClass == symbolClass && (symbolClass != CONSTANT_SYMBOL || base->elementType == type)) {
 		return true;
@@ -643,10 +587,7 @@ static bool _checkArrayElement(const Symbol * base, const char * subject, const 
 	return false;
 }
 
-/**
- * Checks that a scalar name is not visible yet (there is no shadowing): it is
- * not a builtin (V01), an array (V03), nor any other symbol (V01).
- */
+/** There is no shadowing: the name cannot be visible yet, even as a builtin. */
 static bool _checkUndeclared(const char * name, const int line) {
 	const Symbol * symbol = lookupSymbol(_symbolTable, name);
 	if (symbol == NULL) {
@@ -665,10 +606,8 @@ static bool _checkUndeclared(const char * name, const int line) {
 }
 
 /**
- * Declares the resolved name of a global entity or constant, in the global
- * scope. The base name of an element of an array must be a homogeneous array
- * (V03), and every name must be new (V01). The type is only relevant for
- * constants. Returns NULL if it cannot be declared.
+ * Entities and constants declared inside a "for" are global too. The type only
+ * matters for constants.
  */
 static Symbol * _declare(const Reference * reference, const char * name, const SymbolClass symbolClass, const ValueType type, const int line) {
 	if (reference->index == NULL) {
@@ -704,12 +643,8 @@ static Symbol * _declare(const Reference * reference, const char * name, const S
 }
 
 /**
- * Declares a parameter of a policy in the innermost scope, with its type and
- * its position. A parameter whose name is already a parameter of the same
- * policy is a duplicate (V01), and the first one stays. A parameter with the
- * name of a builtin or of a visible symbol is a duplicate too (V01, there is
- * no shadowing), but it is declared anyway, so the body is checked against
- * its declared type without more errors.
+ * A repeated parameter keeps the first declaration. One that shadows a visible
+ * symbol is an error, but it is declared anyway so its uses do not cascade.
  */
 static void _declareParameter(const Parameter * parameter, const unsigned int index, const char * owner, const int line) {
 	const Symbol * visible = lookupSymbol(_symbolTable, parameter->identifier);
@@ -723,10 +658,7 @@ static void _declareParameter(const Parameter * parameter, const unsigned int in
 	symbol->parameterIndex = index;
 }
 
-/**
- * Describes the declaration being analyzed (e.g., 'road "Tramo[5]"'), using
- * its base name if its index failed.
- */
+/** Uses the base name if the index of the declaration failed. */
 static char * _describe(const SymbolClass symbolClass, const char * name, const Reference * reference) {
 	return describeSymbol(symbolClass, name != NULL ? name : reference->identifier);
 }
@@ -740,10 +672,7 @@ static void _destroyReportedErrors() {
 	}
 }
 
-/**
- * True if some phase of the light enables the road. With a NULL road, true
- * if some phase has a road that could not be resolved.
- */
+/** With a NULL road, it tells whether some phase has an unresolved road. */
 static bool _enables(const Light * light, const Road * road) {
 	for (unsigned int k = 0; k < light->phaseCount; ++k) {
 		const Phase * phase = &light->phases[k];
@@ -757,9 +686,8 @@ static bool _enables(const Light * light, const Road * road) {
 }
 
 /**
- * The euclidean distance between two intersections, rounded to the meter,
- * with an integer square root (no libm). Returns false if it does not fit in
- * an integer.
+ * Rounded to the nearest meter with an integer square root, so it needs no
+ * libm. False if it overflows an integer.
  */
 static bool _euclideanDistance(const Intersection * from, const Intersection * to, int * distance) {
 	const long long dx = (long long) to->x - from->x;
@@ -781,11 +709,6 @@ static bool _euclideanDistance(const Intersection * from, const Intersection * t
 	return true;
 }
 
-/**
- * Evaluates an expression whose type must be the expected one (V04). The
- * field describes it in the message (e.g., "the length of"). Returns NULL if
- * it has an error.
- */
 static Value * _evaluateField(Expression * expression, const ValueType expected, const char * field, const char * owner) {
 	Value * value = evaluateExpression(_symbolTable, expression, owner);
 	if (value->type == expected) {
@@ -799,10 +722,7 @@ static Value * _evaluateField(Expression * expression, const ValueType expected,
 	return NULL;
 }
 
-/**
- * Evaluates an integer or a magnitude of the expected type (V04). Returns
- * false if it has an error, without changing the integer.
- */
+/** On an error, the integer keeps its previous value. */
 static bool _evaluateInteger(Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer) {
 	Value * value = _evaluateField(expression, expected, field, owner);
 	if (value == NULL) {
@@ -813,10 +733,6 @@ static bool _evaluateInteger(Expression * expression, const ValueType expected, 
 	return true;
 }
 
-/**
- * Evaluates a label, which must be a string (V04). Returns NULL if there is
- * no label, or if it has an error.
- */
 static char * _evaluateLabel(Expression * label, const char * owner) {
 	if (label == NULL) {
 		return NULL;
@@ -830,11 +746,6 @@ static char * _evaluateLabel(Expression * label, const char * owner) {
 	return string;
 }
 
-/**
- * Evaluates an integer or a magnitude of the expected type (V04), which must
- * be positive (V07). Returns false if it has an error, or if it is not
- * positive.
- */
 static bool _evaluatePositive(Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer) {
 	Value * value = _evaluateField(expression, expected, field, owner);
 	if (value == NULL) {
@@ -851,10 +762,6 @@ static bool _evaluatePositive(Expression * expression, const ValueType expected,
 	return positive;
 }
 
-/**
- * Formats a magnitude in base units for messages (spec-v3 §3.8). Returns a
- * new string.
- */
 static char * _formatMagnitude(const ValueType type, const int integer) {
 	Value * value = createIntegerValue(type, integer);
 	char * text = formatValue(value, NULL);
@@ -862,10 +769,6 @@ static char * _formatMagnitude(const ValueType type, const int integer) {
 	return text;
 }
 
-/**
- * The kind of a declared name, for messages: its class (e.g., "a road" or
- * "roads") or, for a constant, also its type ("an integer constant").
- */
 static char * _kindName(const SymbolClass symbolClass, const ValueType type, const bool plural) {
 	if (symbolClass != CONSTANT_SYMBOL) {
 		return plural
@@ -878,9 +781,8 @@ static char * _kindName(const SymbolClass symbolClass, const ValueType type, con
 }
 
 /**
- * Resolves the name of a declaration, evaluating its index. If the index has
- * an error, returns NULL, and the base name is marked as an incomplete array,
- * so the references to its elements produce no more errors.
+ * If the index has an error, the base name becomes an incomplete array, so a
+ * reference to a missing element produces no more errors.
  */
 static char * _resolveDeclaredName(const Reference * reference, const SymbolClass symbolClass, const ValueType type, const int line) {
 	if (reference->index == NULL) {
@@ -916,11 +818,8 @@ static char * _resolveDeclaredName(const Reference * reference, const SymbolClas
 }
 
 /**
- * Resolves the road of a leg of a route, from a waypoint to the next one: it
- * must be the only road in that direction (V09). Returns NULL if the leg has
- * no road or more than one, or if a waypoint is unresolved. A leg without a
- * road produces no error if a road with an unresolved endpoint could be its
- * road (spec-v3 D15).
+ * A leg without a road is not reported if a road with an unresolved endpoint
+ * could be it, because that endpoint was already reported.
  */
 static Road * _resolveLeg(const Route * route, const Intersection * from, const Intersection * to) {
 	if (from == NULL || to == NULL) {
@@ -955,10 +854,6 @@ static Road * _resolveLeg(const Route * route, const Intersection * from, const 
 	return NULL;
 }
 
-/**
- * Resolves the roads of the legs of every route (V09), once every road has
- * been declared.
- */
 static void _resolveRoutes() {
 	for (unsigned int k = 0; k < _model->routeCount; ++k) {
 		Route * route = _model->routes[k];
@@ -970,11 +865,6 @@ static void _resolveRoutes() {
 	}
 }
 
-/**
- * The names of the roads from an intersection to another one, in order of
- * declaration, for messages (e.g., '"AB1", "AB2" and "AB3"'). The count is
- * the number of such roads. Returns a new string.
- */
 static char * _roadNames(const Intersection * from, const Intersection * to, const unsigned int count) {
 	char * names = concatenate(1, "");
 	unsigned int index = 0;
@@ -991,9 +881,6 @@ static char * _roadNames(const Intersection * from, const Intersection * to, con
 	return names;
 }
 
-/**
- * The integer square root of a number, rounded down (bit by bit).
- */
 static unsigned long long _squareRoot(const unsigned long long number) {
 	unsigned long long remainder = number;
 	unsigned long long root = 0;
@@ -1014,10 +901,6 @@ static unsigned long long _squareRoot(const unsigned long long number) {
 	return root;
 }
 
-/**
- * The unit of the result of a metric whose argument has that type: "s", "m"
- * or "km/h" for a magnitude, and NULL for an integer.
- */
 static const char * _unitOfType(const ValueType type) {
 	switch (type) {
 		case DISTANCE_VALUE_TYPE: return "m";
@@ -1028,10 +911,8 @@ static const char * _unitOfType(const ValueType type) {
 }
 
 /**
- * Every road that enters the intersection of a light must be enabled by some
- * of its phases (V12), with an error for each missing road. If a phase has a
- * road that could not be resolved, it could be any of them, so the light is
- * not checked (spec-v3 D15).
+ * If a phase has a road that could not be resolved, it could be any of them,
+ * so the light is not checked.
  */
 static void _validateIncomingRoads(const Light * light) {
 	if (_enables(light, NULL)) {
@@ -1046,12 +927,6 @@ static void _validateIncomingRoads(const Light * light) {
 	}
 }
 
-/**
- * Validates the lights, in order of declaration: each one must be the only
- * light at its intersection (V13), which keeps a pointer to the first one,
- * and its phases must match the roads that enter its intersection (V11 and
- * V12). A light whose intersection is unresolved is not checked.
- */
 static void _validateLights() {
 	for (unsigned int k = 0; k < _model->lightCount; ++k) {
 		Light * light = _model->lights[k];
@@ -1071,10 +946,6 @@ static void _validateLights() {
 	}
 }
 
-/**
- * Every road of every phase of a light must enter the intersection of the
- * light (V11). A road with an unresolved destination is not checked.
- */
 static void _validatePhases(const Light * light) {
 	for (unsigned int k = 0; k < light->phaseCount; ++k) {
 		const Phase * phase = &light->phases[k];
@@ -1088,11 +959,6 @@ static void _validatePhases(const Light * light) {
 	}
 }
 
-/**
- * Two intersections with valid positions cannot be at the same position
- * (V08). Each intersection is reported against the first one declared at its
- * position, so n intersections at the same position produce n - 1 errors.
- */
 static void _validatePositions() {
 	for (unsigned int k = 0; k < _model->intersectionCount; ++k) {
 		const Intersection * intersection = _model->intersections[k];

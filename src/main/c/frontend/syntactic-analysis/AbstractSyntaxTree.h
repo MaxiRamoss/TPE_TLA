@@ -163,12 +163,7 @@ enum PositionType {
 	RELATIVE_POSITION
 };
 
-/**
- * What a reference in a context of execution resolves to (spec-v3 §3.5): a
- * builtin (e.g., "elapsed"), a constant or a loop variable (with its folded
- * value), a global entity (with its resolved identifier), or a parameter of
- * its policy. ERROR if the reference has an error.
- */
+/** What a reference in the body of a policy or in a metric resolves to. */
 enum ResolutionType {
 	BUILTIN_RESOLUTION,
 	CONSTANT_RESOLUTION,
@@ -431,9 +426,8 @@ struct MetricDeclaration {
 	/** NULL if the metric has no label. */
 	Expression * label;
 	/**
-	 * The number of times that the semantic analysis analyzed the
-	 * declaration: one for each iteration of the "for" loops that contain
-	 * it (spec-v3 §3.3), and one if it is not in a loop.
+	 * How many times the semantic analysis analyzed the declaration: once per
+	 * iteration of the enclosing "for" loops, or once if it is not in a loop.
 	 */
 	unsigned int instanceCount;
 };
@@ -499,10 +493,7 @@ struct Expression {
 	ExpressionType type;
 	/** The line of the source code where the node begins. */
 	int line;
-	/**
-	 * The static type of the expression (spec-v3 §2), annotated by the
-	 * semantic analysis: ERROR if it has an error.
-	 */
+	/** Annotated by the semantic analysis (ERROR if the expression has an error). */
 	ValueType staticType;
 };
 

@@ -23,13 +23,8 @@ ModuleDestructor initializeModelModule() {
 static void * _ensureCapacity(void * items, const unsigned int count, unsigned int * capacity);
 static char * _labelOrEmpty(const char * label);
 
-/** The initial capacity of each array of entities. */
 static const unsigned int _initialCapacity = 8;
 
-/**
- * Grows an array of pointers if it is full, doubling its capacity. Returns
- * the array, which may have moved.
- */
 static void * _ensureCapacity(void * items, const unsigned int count, unsigned int * capacity) {
 	if (count < *capacity) {
 		return items;
@@ -38,9 +33,6 @@ static void * _ensureCapacity(void * items, const unsigned int count, unsigned i
 	return realloc(items, *capacity * sizeof(void *));
 }
 
-/**
- * A label for logging purposes: an empty string if there is no label.
- */
 static char * _labelOrEmpty(const char * label) {
 	if (label == NULL) {
 		return concatenate(1, "");
@@ -48,7 +40,6 @@ static char * _labelOrEmpty(const char * label) {
 	return concatenate(3, " label \"", label, "\"");
 }
 
-/** The identifier of a referenced entity, or "?" if it was not resolved. */
 #define ID_OF(entity) ((entity) != NULL ? (entity)->id : "?")
 
 /* PUBLIC FUNCTIONS */

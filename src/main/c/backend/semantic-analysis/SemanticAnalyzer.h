@@ -13,15 +13,14 @@
 ModuleDestructor initializeSemanticAnalyzerModule();
 
 /**
- * Analyzes the AST of the current compiler state. If the program is valid, it
- * builds the resolved model; otherwise, it reports every semantic error, and
- * returns FAILED.
+ * If the program is valid, it leaves the resolved model in the compiler state.
+ * Otherwise, it reports every semantic error.
  */
 CompilationStatus executeSemanticAnalysis(CompilerState * compilerState);
 
 /**
- * Reports a semantic error at the specified line of the source code, and
- * counts it. For internal use of the semantic-analysis phase only.
+ * For the semantic-analysis phase only. An error identical to one already
+ * reported (same line and message) is ignored.
  */
 void semanticError(const int line, const char * format, ...) __attribute__((format(printf, 2, 3)));
 

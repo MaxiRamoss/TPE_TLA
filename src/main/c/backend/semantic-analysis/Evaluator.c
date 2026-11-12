@@ -33,10 +33,6 @@ static Value * _fold(const Expression * expression, const ValueType type, const 
 static char * _interpolate(const SymbolTable * symbolTable, const Value * value);
 static Value * _overflow(const Expression * expression, const char * owner);
 
-/**
- * The equality of two values of the same type: strings and entities compare
- * their text.
- */
 static bool _areEqual(const Value * left, const Value * right) {
 	if (left->type == STRING_VALUE_TYPE) {
 		return strcmp(left->string, right->string) == 0;
@@ -51,8 +47,8 @@ static bool _areEqual(const Value * left, const Value * right) {
 }
 
 /**
- * Evaluates a binary operation. Both operands are always evaluated (there is
- * no short-circuit at compile time), so the errors of both are reported.
+ * There is no short-circuit at compile time: both operands are evaluated, so
+ * the errors of both are reported.
  */
 static Value * _evaluateBinary(SymbolTable * symbolTable, const Expression * expression, const char * owner) {
 	Value * left = evaluateExpression(symbolTable, expression->leftExpression, owner);
@@ -78,11 +74,8 @@ static Value * _evaluateBinary(SymbolTable * symbolTable, const Expression * exp
 }
 
 /**
- * Evaluates a call. No call is valid at compile time: "queue" and
- * "occupancy" are builtins out of their context (V06); an aggregator outside
- * a metric, a policy used as an expression, or any other name is not a
- * function here (V15). The arguments are evaluated anyway, to report their
- * own errors.
+ * No call is valid at compile time. The arguments are evaluated anyway, to
+ * report their own errors.
  */
 static Value * _evaluateCall(SymbolTable * symbolTable, const Call * call, const char * owner) {
 	const Symbol * symbol = lookupSymbol(symbolTable, call->identifier);
@@ -131,11 +124,6 @@ static Value * _evaluateFactor(SymbolTable * symbolTable, const Factor * factor,
 	}
 }
 
-/**
- * Evaluates a member access. The only member is "trip.travel_time" (spec-v3
- * §3.6), which is a builtin out of its context at compile time (V06). Any
- * other member is unknown (V16).
- */
 static Value * _evaluateMember(SymbolTable * symbolTable, const Factor * factor, const char * owner) {
 	if (isBuiltinReference(symbolTable, factor->factor, "trip")) {
 		if (strcmp(factor->member, "travel_time") == 0) {
@@ -155,10 +143,6 @@ static Value * _evaluateMember(SymbolTable * symbolTable, const Factor * factor,
 	return createErrorValue();
 }
 
-/**
- * Evaluates a quantity, converting it to base units (spec-v3 D11): m, s and
- * m/h. A conversion that does not fit in an integer is an error (V05).
- */
 static Value * _evaluateQuantity(const Factor * factor, const char * owner) {
 	ValueType type = ERROR_VALUE_TYPE;
 	int scale = 1;
@@ -180,13 +164,6 @@ static Value * _evaluateQuantity(const Factor * factor, const char * owner) {
 	return createIntegerValue(type, value);
 }
 
-/**
- * Evaluates a reference: a constant or a loop variable folds to its value,
- * and an entity to its resolved identifier. A builtin is out of its context
- * at compile time (V06). A parameter of a policy is only known at run time,
- * so it cannot be used where a value is needed at compile time, such as an
- * index (spec-v3 §3.3).
- */
 static Value * _evaluateReference(SymbolTable * symbolTable, const Reference * reference, const char * owner) {
 	const Symbol * symbol = resolveReference(symbolTable, reference, owner, "identifier");
 	if (symbol == NULL) {
@@ -207,10 +184,6 @@ static Value * _evaluateReference(SymbolTable * symbolTable, const Reference * r
 	}
 }
 
-/**
- * Evaluates a string, interpolating its expressions (spec-v3 §3.8). If an
- * interpolated expression has an error, the entire string has an error.
- */
 static Value * _evaluateString(SymbolTable * symbolTable, const StringLiteral * stringLiteral, const char * owner) {
 	char * string = concatenate(1, "");
 	bool failed = false;
@@ -243,10 +216,6 @@ static Value * _evaluateString(SymbolTable * symbolTable, const StringLiteral * 
 	return createStringValue(string);
 }
 
-/**
- * Evaluates a unary operation. The negation of the minimum integer is an
- * overflow (V05).
- */
 static Value * _evaluateUnary(SymbolTable * symbolTable, const Expression * expression, const char * owner) {
 	Value * operand = evaluateExpression(symbolTable, expression->expression, owner);
 	Value * result = NULL;
@@ -273,11 +242,7 @@ static Value * _evaluateUnary(SymbolTable * symbolTable, const Expression * expr
 	return result;
 }
 
-/**
- * Folds a binary operation whose operands are valid for it, producing a value
- * of that type. The integer arithmetic truncates towards zero, and a division
- * by zero or an overflow is an error (V05).
- */
+/** The operands are already valid for the operation. A division truncates towards zero. */
 static Value * _fold(const Expression * expression, const ValueType type, const Value * left, const Value * right, const char * owner) {
 	int integer = 0;
 	switch (expression->type) {
@@ -320,10 +285,6 @@ static Value * _fold(const Expression * expression, const ValueType type, const 
 	}
 }
 
-/**
- * Formats a value for its interpolation. An entity uses its label, if it has
- * one.
- */
 static char * _interpolate(const SymbolTable * symbolTable, const Value * value) {
 	const char * label = NULL;
 	if (isEntityType(value->type)) {
@@ -333,9 +294,6 @@ static char * _interpolate(const SymbolTable * symbolTable, const Value * value)
 	return formatValue(value, label);
 }
 
-/**
- * Reports an overflow of an operation (V05).
- */
 static Value * _overflow(const Expression * expression, const char * owner) {
 	semanticError(expression->line, "operator \"%s\" overflows an integer in %s", operationSymbol(expression->type), owner);
 	return createErrorValue();

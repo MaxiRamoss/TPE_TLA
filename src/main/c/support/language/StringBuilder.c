@@ -4,13 +4,8 @@
 
 static void _ensureCapacity(StringBuilder * builder, const size_t length);
 
-/** The initial capacity of a string builder, including its '\0'. */
 static const size_t _initialCapacity = 256;
 
-/**
- * Grows the buffer, doubling its capacity, until it fits "length" more
- * characters and the final '\0'.
- */
 static void _ensureCapacity(StringBuilder * builder, const size_t length) {
 	const size_t required = builder->length + length + 1;
 	if (required <= builder->capacity) {

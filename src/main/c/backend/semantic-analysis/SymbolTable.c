@@ -29,12 +29,11 @@ static void _logScope(const Scope * scope, const unsigned int depth);
 static Symbol * _lookupInScope(const Scope * scope, const char * name);
 static void _rehash(Scope * scope);
 
-/** The initial number of buckets of each scope. */
 static const unsigned int _initialCapacity = 16;
 
 /**
- * The names reserved for the builtins (spec-v3 §3.6). Declaring an entity, a
- * constant or a parameter with one of these names is a duplicate.
+ * Declaring an entity, a constant or a parameter with one of these names is a
+ * duplicate.
  */
 static const char * const _builtins[] = {
 	"queue", "occupancy", "elapsed", "trip", "count", "sum", "average", "minimum", "maximum", "tick", "arrival"
@@ -48,10 +47,6 @@ static Scope * _createScope(Scope * parent) {
 	return scope;
 }
 
-/**
- * Inserts a new symbol in a scope, keeping the order of declaration. The load
- * factor of the table stays under 3/4.
- */
 static Symbol * _declareSymbol(Scope * scope, const char * name, const SymbolClass symbolClass, const int line) {
 	if (4 * (scope->size + 1) > 3 * scope->capacity) {
 		_rehash(scope);
@@ -86,9 +81,7 @@ static void _destroyScope(Scope * scope) {
 	free(scope);
 }
 
-/**
- * Destroys a symbol. The entities belong to the model, so they survive.
- */
+/** The entities belong to the model, so they survive. */
 static void _destroySymbol(Symbol * symbol) {
 	if (symbol->symbolClass == CONSTANT_SYMBOL || symbol->symbolClass == LOOP_VARIABLE_SYMBOL) {
 		destroyValue(symbol->value);
@@ -98,7 +91,7 @@ static void _destroySymbol(Symbol * symbol) {
 }
 
 /**
- * The 32-bit FNV-1a hash of a name, byte by byte (so it works with UTF-8).
+ * The 32-bit FNV-1a hash.
  *
  * @see http://www.isthe.com/chongo/tech/comp/fnv/
  */
@@ -165,9 +158,6 @@ static Symbol * _lookupInScope(const Scope * scope, const char * name) {
 	return NULL;
 }
 
-/**
- * Doubles the number of buckets of a scope, and redistributes its symbols.
- */
 static void _rehash(Scope * scope) {
 	const unsigned int capacity = 2 * scope->capacity;
 	Symbol ** buckets = calloc(capacity, sizeof(Symbol *));

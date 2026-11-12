@@ -2,13 +2,8 @@
 #define VALUE_TYPE_HEADER
 
 /**
- * The type of an expression. Magnitudes are exact integers in base units
- * (spec-v3 D11): a DISTANCE in m, a DURATION in s, and a SPEED in m/h. An
- * entity is referenced by its resolved identifier. ERROR is the type of an
- * expression with an error, which never produces more errors.
- *
- * It is shared by the AST (where the semantic analysis annotates the static
- * type of each expression) and the backend.
+ * Magnitudes are exact integers in base units: m, s and m/h. ERROR is the
+ * type of an expression with an error, which never produces more errors.
  */
 typedef enum ValueType {
 	BOOLEAN_VALUE_TYPE,

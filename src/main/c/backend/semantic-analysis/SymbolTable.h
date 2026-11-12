@@ -18,9 +18,8 @@ typedef struct Symbol Symbol;
 typedef struct SymbolTable SymbolTable;
 
 /**
- * The class of a symbol (spec-v3 §3.2). An array is not a class of entity: it
- * is the base name of a group of indexed symbols (e.g., "Rivadavia" for
- * "Rivadavia[0]", "Rivadavia[1]", ...), each one with its own class.
+ * An ARRAY_SYMBOL is the base name of indexed symbols (e.g., "Rivadavia" for
+ * "Rivadavia[3]"), and each one of them has its own class.
  */
 enum SymbolClass {
 	ARRAY_SYMBOL,
@@ -38,39 +37,30 @@ enum SymbolClass {
 };
 
 /**
- * A symbol, indexed by its resolved name: "A" for a scalar, "Rivadavia[3]"
- * for an element of an array, and "Rivadavia" for the base name of that
- * array. A base name is either a scalar or an array, never both.
+ * Its name is the resolved one (e.g., "Rivadavia[3]"). A base name is either
+ * a scalar or an array, never both.
  */
 struct Symbol {
-	/** The resolved name, which is the key of the symbol in its scope. */
 	char * name;
 	SymbolClass symbolClass;
-	/** The line of its declaration (0 for a builtin). */
+	/** 0 for a builtin. */
 	int line;
 	union {
-		/** CONSTANT_SYMBOL and LOOP_VARIABLE_SYMBOL (ERROR if it failed). */
+		/** Of a constant or a loop variable: an ERROR value if it failed. */
 		Value * value;
 		/**
-		 * ARRAY_SYMBOL: arrays are homogeneous, so every element has the
-		 * same class (and, if they are constants, the same type). It is
-		 * incomplete if the index of some declaration of an element failed,
-		 * so a reference to an undeclared element produces no error.
+		 * Arrays are homogeneous. An array is incomplete if the index of some
+		 * element failed, and then a missing index produces no error.
 		 */
 		struct {
 			SymbolClass elementClass;
 			ValueType elementType;
 			bool incomplete;
 		};
-		/**
-		 * PARAMETER_SYMBOL: its declared type, and its position in the
-		 * parameters of its policy (0 for the first one).
-		 */
 		struct {
 			ValueType parameterType;
 			unsigned int parameterIndex;
 		};
-		/** The entity of the model, for the classes of entities. */
 		Flow * flow;
 		Intersection * intersection;
 		Light * light;
@@ -79,80 +69,52 @@ struct Symbol {
 		Road * road;
 		Route * route;
 	};
-	/** The next symbol in the same bucket of the hash table. */
 	Symbol * nextInBucket;
-	/** The next symbol of the same scope, in order of declaration. */
 	Symbol * nextInScope;
 };
 
-/**
- * A scope: a hash table with separate chaining, that also keeps its symbols
- * in order of declaration.
- */
 struct Scope {
 	Symbol ** buckets;
 	unsigned int capacity;
 	unsigned int size;
 	Symbol * first;
 	Symbol * last;
-	/** The enclosing scope (NULL for the global scope). */
 	Scope * parent;
 };
 
 /**
- * A stack of scopes (spec-v3 §3.2): global, one more for each "for" being
- * unrolled, and one for the parameters of the policy being analyzed.
+ * The global scope, then one more for each "for" being unrolled, and one for
+ * the parameters of the policy being analyzed.
  */
 struct SymbolTable {
 	Scope * global;
 	Scope * innermost;
 };
 
-/**
- * Creates a symbol table with only the global scope, where the builtins
- * (spec-v3 §3.6) are already reserved.
- */
+/** The builtins are already reserved in its global scope. */
 SymbolTable * createSymbolTable();
 
-/** Destroys a symbol table, its scopes and its symbols (not the entities). */
+/** The entities of its symbols belong to the model, so they survive. */
 void destroySymbolTable(SymbolTable * symbolTable);
 
-/** Pushes a new innermost scope. */
 void pushScope(SymbolTable * symbolTable);
-
-/** Pops the innermost scope, destroying its symbols. */
 void popScope(SymbolTable * symbolTable);
 
 /**
- * Declares a new symbol in the global scope, or in the innermost one. The
- * name must not be visible yet (the caller must check it with
- * "lookupSymbol"). The symbol takes a copy of the name.
+ * The name must not be visible yet (the caller checks it with "lookupSymbol").
+ * The symbol takes a copy of the name.
  */
 Symbol * declareGlobalSymbol(SymbolTable * symbolTable, const char * name, const SymbolClass symbolClass, const int line);
 Symbol * declareLocalSymbol(SymbolTable * symbolTable, const char * name, const SymbolClass symbolClass, const int line);
 
-/**
- * Looks up a visible symbol, from the innermost scope to the global one.
- * Returns NULL if there is none.
- */
+/** NULL if no visible symbol has that name. */
 Symbol * lookupSymbol(const SymbolTable * symbolTable, const char * name);
 
-/** The label of the entity of a symbol, or NULL if it has none. */
 const char * symbolLabel(const Symbol * symbol);
-
-/** The name of a class (e.g., "loop variable"), for messages. */
 const char * symbolClassName(const SymbolClass symbolClass);
-
-/** The name of a class with its indefinite article (e.g., "an array"). */
 const char * symbolClassNameWithArticle(const SymbolClass symbolClass);
-
-/** The type of the value of a reference to an entity of that class. */
 ValueType symbolClassValueType(const SymbolClass symbolClass);
 
-/**
- * Logs the symbols of every scope at DEBUGGING level, in order of declaration
- * (except the builtins).
- */
 void logSymbolTable(const SymbolTable * symbolTable);
 
 #endif

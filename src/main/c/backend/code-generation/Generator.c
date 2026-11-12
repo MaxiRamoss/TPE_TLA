@@ -5,9 +5,8 @@
 static Logger * _logger = NULL;
 
 /**
- * FAILED if the generation finds something that the model of a valid program
- * cannot have. The semantic analysis guarantees that it never happens, but
- * if it does, the output is not emitted.
+ * FAILED if the model has something that the semantic analysis should have
+ * rejected: then nothing is emitted.
  */
 static CompilationStatus _status = SUCCEEDED;
 
@@ -29,10 +28,7 @@ ModuleDestructor initializeGeneratorModule() {
 
 typedef enum Marker Marker;
 
-/**
- * The markers of the viewer (spec-v3 §5.1), in order of replacement. Each one
- * must appear exactly once, alone on its line.
- */
+/** Each marker must appear in the viewer exactly once. */
 enum Marker {
 	CONFIG_MARKER,
 	LOGIC_MARKER,
@@ -46,16 +42,12 @@ static const char * const _markers[MARKER_COUNT] = {
 	"<!-- VIAL:RUNTIME -->"
 };
 
-/** The default directory of the runtime assets, relative to the working directory. */
+/** Relative to the working directory, which is the root of the repository for the scripts. */
 static const char * _defaultRuntimePath = "src/main/runtime";
 
-/** The indentation of each level of the generated JSON and JavaScript. */
 static const char * _indentation = "  ";
 
-/**
- * The instance of the body of a policy whose resolutions the generator uses:
- * a policy of a valid program is analyzed only once (spec-v3 §3.3).
- */
+/** A policy has no index, so in a valid program its body is analyzed only once. */
 static const unsigned int _policyInstance = 0;
 
 static char * _assetPath(const char * directory, const char * name);
@@ -100,15 +92,9 @@ static long long _scaleOf(const Unit unit);
 static void _separate(StringBuilder * output, const unsigned int k, const unsigned int count);
 static bool _write(const StringBuilder * html);
 
-/**
- * The identifier of a referenced entity. A valid model has no unresolved
- * references, but if it had one, the generation fails.
- */
+/** A valid model has no unresolved references; if it had one, the generation fails. */
 #define ID_OF(entity) ((entity) != NULL ? (entity)->id : _missingEntity())
 
-/**
- * The path of an asset in the runtime directory. Returns a new string.
- */
 static char * _assetPath(const char * directory, const char * name) {
 	const size_t length = strlen(directory);
 	if (length == 0) {
@@ -117,18 +103,10 @@ static char * _assetPath(const char * directory, const char * name) {
 	return concatenate(3, directory, directory[length - 1] == '/' ? "" : "/", name);
 }
 
-/**
- * The class of an entity type, as "$ctx.name" expects it (e.g., "road"), or
- * NULL if the type is not an entity.
- */
 static const char * _entityClass(const ValueType type) {
 	return isEntityType(type) ? valueTypeName(type) : NULL;
 }
 
-/**
- * The type of a value, as "$ctx.fmt" expects it (e.g., "duration"), or NULL
- * if it is not one of the types that "fmt" formats (spec-v3 §3.8).
- */
 static const char * _formatType(const ValueType type) {
 	switch (type) {
 		case BOOLEAN_VALUE_TYPE:
@@ -143,18 +121,12 @@ static const char * _formatType(const ValueType type) {
 	}
 }
 
-/**
- * Generates the indentation of a level.
- */
 static void _indent(StringBuilder * output, const unsigned int level) {
 	for (unsigned int k = 0; k < level; ++k) {
 		appendString(output, _indentation);
 	}
 }
 
-/**
- * Generates a formatted string, preceded by the indentation of a level.
- */
 static void _output(StringBuilder * output, const unsigned int level, const char * const format, ...) {
 	_indent(output, level);
 	va_list arguments;
@@ -163,18 +135,10 @@ static void _output(StringBuilder * output, const unsigned int level, const char
 	va_end(arguments);
 }
 
-/**
- * Generates the end of an element of a list: a comma, unless it is the last
- * one, and a new line.
- */
 static void _separate(StringBuilder * output, const unsigned int k, const unsigned int count) {
 	appendString(output, k + 1 < count ? ",\n" : "\n");
 }
 
-/**
- * Reports something that the model of a valid program cannot have, and makes
- * the generation fail.
- */
 static void _reportUnexpected(const char * what) {
 	logError(_logger, "Unexpected %s in the model of an accepted program.", what);
 	_status = FAILED;
@@ -185,16 +149,11 @@ static const char * _missingEntity() {
 	return NULL;
 }
 
-/* ------------------------------------------------------------------------ */
-/* Literals                                                                 */
-/* ------------------------------------------------------------------------ */
+/* LITERALS */
 
 /**
- * Generates a string literal, valid both in JSON and in JavaScript, or "null"
- * if the string is NULL. The quotes, the backslashes and the control
- * characters are escaped, and so is "<" (as "<"), so that no string can
- * close the <script> that contains it (spec-v3 §5.3). Any other character,
- * such as the UTF-8 ones, is copied as it is.
+ * Valid both in JSON and in JavaScript. "<" is escaped too, so that no string
+ * can close the <script> that contains it.
  */
 static void _generateString(StringBuilder * output, const char * string) {
 	if (string == NULL) {
@@ -225,18 +184,11 @@ static void _generateString(StringBuilder * output, const char * string) {
 	appendString(output, "\"");
 }
 
-/**
- * Generates an integer literal. A negative one goes between parentheses, so
- * that it never forms "--" next to another minus sign.
- */
+/** A negative integer goes between parentheses, so that it never forms "--" with another minus sign. */
 static void _generateInteger(StringBuilder * output, const long long integer) {
 	appendFormat(output, integer < 0 ? "(%lld)" : "%lld", integer);
 }
 
-/**
- * Generates a value known at compile time, as a JSON value: an entity by its
- * identifier, and a magnitude in base units.
- */
 static void _generateValue(StringBuilder * output, const Value * value) {
 	switch (value->type) {
 		case BOOLEAN_VALUE_TYPE:
@@ -263,13 +215,8 @@ static void _generateValue(StringBuilder * output, const Value * value) {
 	}
 }
 
-/* ------------------------------------------------------------------------ */
-/* vial-config (spec-v3 §5.2)                                               */
-/* ------------------------------------------------------------------------ */
+/* VIAL-CONFIG */
 
-/**
- * Generates the "id" and the "label" of an entity.
- */
 static void _generateIdentity(StringBuilder * output, const char * id, const char * label) {
 	appendString(output, "\"id\": ");
 	_generateString(output, id);
@@ -302,10 +249,6 @@ static void _generatePhase(StringBuilder * output, const Phase * phase) {
 	appendFormat(output, "], \"duration\": %d }", phase->duration);
 }
 
-/**
- * Generates an "apply" of a light: its policy, and its arguments as JSON
- * values.
- */
 static void _generateApplication(StringBuilder * output, const PolicyApplication * application) {
 	_output(output, 4, "{ \"policy\": ");
 	_generateString(output, ID_OF(application->policy));
@@ -370,10 +313,7 @@ static void _generateMetric(StringBuilder * output, const Metric * metric) {
 	appendString(output, " }");
 }
 
-/**
- * Generates the "vial-config" JSON (spec-v3 §5.2): the entities of the
- * model, in order of declaration, with each key in its place.
- */
+/** Each array keeps the order of declaration, which the runtime uses as the priority. */
 static void _generateConfig(StringBuilder * output, const Model * model) {
 	appendString(output, "{\n");
 	_output(output, 1, "\"simulation\": { ");
@@ -424,13 +364,11 @@ static void _generateConfig(StringBuilder * output, const Model * model) {
 	appendString(output, "}");
 }
 
-/* ------------------------------------------------------------------------ */
-/* VIAL_LOGIC (spec-v3 §5.3)                                                */
-/* ------------------------------------------------------------------------ */
+/* VIAL_LOGIC */
 
 /**
- * The JavaScript operator of a binary operation (spec-v3 §5.3), except "/",
- * which is a call to "$ctx.div".
+ * Division is not here: it is "$ctx.div", which truncates towards zero and
+ * returns 0 when the divisor is 0.
  */
 static const char * _operator(const ExpressionType type) {
 	switch (type) {
@@ -451,10 +389,7 @@ static const char * _operator(const ExpressionType type) {
 	}
 }
 
-/**
- * The factor that converts a quantity to base units (spec-v3 D11): m, s and
- * m/h.
- */
+/** The base units are m, s and m/h, so that every speed is an exact integer. */
 static long long _scaleOf(const Unit unit) {
 	switch (unit) {
 		case HOURS_UNIT: return 3600;
@@ -471,9 +406,8 @@ static long long _scaleOf(const Unit unit) {
 }
 
 /**
- * Generates an expression, each operation between parentheses. The
- * references resolve to what they resolved to in that instance of their
- * declaration (spec-v3 §3.3).
+ * The instance selects what each reference resolved to: a metric declared in
+ * a "for" has one instance for each iteration.
  */
 static void _generateExpression(StringBuilder * output, const Expression * expression, const unsigned int instance) {
 	switch (expression->type) {
@@ -539,10 +473,6 @@ static void _generateFactor(StringBuilder * output, const Factor * factor, const
 	}
 }
 
-/**
- * Generates a call to "queue" or "occupancy", the only functions of a
- * context of execution (spec-v3 §3.6).
- */
 static void _generateCall(StringBuilder * output, const Call * call, const unsigned int instance) {
 	if (strcmp(call->identifier, "queue") == 0) {
 		appendString(output, "$ctx.queue(");
@@ -562,19 +492,16 @@ static void _generateCall(StringBuilder * output, const Call * call, const unsig
 }
 
 /**
- * Generates a quantity, converted to base units. It is computed with "long
- * long", which never overflows: in a context of execution, a quantity that
- * does not fit in an integer is not an error (spec-v3 §3.7).
+ * In "long long", because inside policies and metrics a quantity that does
+ * not fit in an int is not an error.
  */
 static void _generateQuantity(StringBuilder * output, const Quantity * quantity) {
 	_generateInteger(output, quantity->value * _scaleOf(quantity->unit));
 }
 
 /**
- * Generates a reference according to what it resolves to in this instance
- * (spec-v3 §5.3): a parameter is "$i", a constant or a loop variable is its
- * folded value, an entity is its identifier, and "elapsed" is a member of
- * "$ctx". No identifier of Vial is used as an identifier of JavaScript.
+ * No identifier of Vial is used as a JavaScript identifier: a parameter is
+ * "$i", a constant is folded, and an entity is its identifier as a string.
  */
 static void _generateReference(StringBuilder * output, const Reference * reference, const unsigned int instance) {
 	if (reference->resolutionCount <= instance) {
@@ -615,11 +542,6 @@ static void _generateReference(StringBuilder * output, const Reference * referen
 	}
 }
 
-/**
- * Generates an interpolation of a string, formatted at run time according to
- * its static type (spec-v3 §3.8): an entity by its label or its identifier,
- * and any other value by "$ctx.fmt".
- */
 static void _generateInterpolation(StringBuilder * output, const Expression * expression, const unsigned int instance) {
 	const char * entityClass = _entityClass(expression->staticType);
 	const char * formatType = _formatType(expression->staticType);
@@ -639,11 +561,7 @@ static void _generateInterpolation(StringBuilder * output, const Expression * ex
 	appendString(output, ")");
 }
 
-/**
- * Generates a string as the concatenation of its fragments and of its
- * interpolations. If it is "grouped" (because it is an operand), a
- * concatenation goes between parentheses.
- */
+/** A concatenation that is an operand ("grouped") goes between parentheses. */
 static void _generateStringLiteral(StringBuilder * output, const StringLiteral * stringLiteral, const unsigned int instance, const bool grouped) {
 	const StringPart * first = stringLiteral->parts->first;
 	if (first == NULL) {
@@ -664,10 +582,7 @@ static void _generateStringLiteral(StringBuilder * output, const StringLiteral *
 	appendString(output, parenthesized ? ")" : "");
 }
 
-/**
- * Generates an "if" and its "else if" chain, from the current position (the
- * indentation of its first line is already generated) to its last "}".
- */
+/** The indentation of its first line is already generated, since it may follow an "else". */
 static void _generateIf(StringBuilder * output, const IfStatement * ifStatement, const unsigned int level) {
 	appendString(output, "if (");
 	_generateExpression(output, ifStatement->condition, _policyInstance);
@@ -720,10 +635,6 @@ static void _generateBlock(StringBuilder * output, const Block * block, const un
 	}
 }
 
-/**
- * Generates a policy as a function of "$ctx" and of one parameter for each
- * parameter of the policy, in order ("$0", "$1", ...).
- */
 static void _generatePolicy(StringBuilder * output, const Policy * policy) {
 	_indent(output, 2);
 	_generateString(output, policy->id);
@@ -736,12 +647,6 @@ static void _generatePolicy(StringBuilder * output, const Policy * policy) {
 	_output(output, 2, "}");
 }
 
-/**
- * Generates the function of a metric, which returns the argument of its
- * aggregator, with the resolutions of its own instance: a metric declared
- * in a "for" has one for each iteration. A metric on arrival also receives
- * the trip. "count" has no argument, so it has no function ("null").
- */
 static void _generateMetricFunction(StringBuilder * output, const Metric * metric) {
 	_indent(output, 2);
 	if (metric->aggregator == COUNT_AGGREGATOR) {
@@ -758,10 +663,7 @@ static void _generateMetricFunction(StringBuilder * output, const Metric * metri
 	appendString(output, "; }");
 }
 
-/**
- * Generates the VIAL_LOGIC object (spec-v3 §5.3): the policies, by their
- * identifiers, and the functions of the metrics, in order of declaration.
- */
+/** The functions of the metrics go in the same order as the metrics of "vial-config". */
 static void _generateLogic(StringBuilder * output, const Model * model) {
 	appendString(output, "{\n");
 	_output(output, 1, "policies: {%s", model->policyCount == 0 ? "" : "\n");
@@ -779,14 +681,8 @@ static void _generateLogic(StringBuilder * output, const Model * model) {
 	appendString(output, "}");
 }
 
-/* ------------------------------------------------------------------------ */
-/* HTML (spec-v3 §5.1)                                                      */
-/* ------------------------------------------------------------------------ */
+/* HTML */
 
-/**
- * Reads an entire asset. Returns NULL, after logging the error, if it cannot
- * be read.
- */
 static StringBuilder * _readAsset(const char * path) {
 	FILE * file = fopen(path, "rb");
 	if (file == NULL) {
@@ -810,10 +706,7 @@ static StringBuilder * _readAsset(const char * path) {
 	return asset;
 }
 
-/**
- * The marker of a line of the viewer, or -1 if it is not one. A marker must
- * be alone on its line, but it may be surrounded by blanks.
- */
+/** A marker must be alone on its line, but it may be surrounded by blanks. */
 static int _markerOf(const char * line, const size_t length) {
 	size_t start = 0;
 	size_t end = length;
@@ -831,9 +724,6 @@ static int _markerOf(const char * line, const size_t length) {
 	return -1;
 }
 
-/**
- * Generates the replacement of a marker (spec-v3 §5.1).
- */
 static void _generateMarker(StringBuilder * html, const Marker marker, const StringBuilder * runtime, const Model * model) {
 	switch (marker) {
 		case CONFIG_MARKER:
@@ -859,11 +749,6 @@ static void _generateMarker(StringBuilder * html, const Marker marker, const Str
 	}
 }
 
-/**
- * Generates the HTML: the viewer, line by line, with each marker replaced.
- * Returns false, after logging the error, if a marker is missing or
- * repeated.
- */
 static bool _generateHtml(StringBuilder * html, const StringBuilder * viewer, const StringBuilder * runtime, const Model * model, const char * viewerPath) {
 	unsigned int occurrences[MARKER_COUNT] = { 0 };
 	size_t start = 0;
@@ -897,10 +782,6 @@ static bool _generateHtml(StringBuilder * html, const StringBuilder * viewer, co
 	return valid;
 }
 
-/**
- * Writes the entire HTML to stdout. Returns false, after logging the error,
- * if it cannot.
- */
 static bool _write(const StringBuilder * html) {
 	const size_t written = fwrite(html->content, sizeof(char), html->length, stdout);
 	if (written != html->length || fflush(stdout) != 0) {

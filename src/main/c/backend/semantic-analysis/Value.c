@@ -7,19 +7,13 @@ static char * _formatDuration(const int seconds);
 static char * _formatSpeed(const int metersPerHour);
 static char * _printToString(const char * format, ...) __attribute__((format(printf, 1, 2)));
 
-/**
- * Creates a copy of a string, in heap-memory.
- */
 static char * _copyString(const char * string) {
 	char * copy = calloc(1 + strlen(string), sizeof(char));
 	strcpy(copy, string);
 	return copy;
 }
 
-/**
- * Formats a duration as "1 h 2 min 5 s", omitting the zeros ("0 s" if every
- * part is zero). A negative duration is prefixed with "-".
- */
+/** "1 h 2 min 5 s", omitting the zeros ("0 s" if every part is zero), and "-" if negative. */
 static char * _formatDuration(const int seconds) {
 	const long long total = seconds < 0 ? -(long long) seconds : seconds;
 	const long long hours = total / 3600;
@@ -42,10 +36,7 @@ static char * _formatDuration(const int seconds) {
 	return _copyString(buffer);
 }
 
-/**
- * Formats a speed in km/h: as an integer if it is exact, or else with one
- * decimal, rounded half away from zero. A negative speed is prefixed with "-".
- */
+/** "40 km/h" if it is exact, or else one decimal rounded half away from zero ("4.3 km/h"). */
 static char * _formatSpeed(const int metersPerHour) {
 	const char * sign = metersPerHour < 0 ? "-" : "";
 	const long long magnitude = metersPerHour < 0 ? -(long long) metersPerHour : metersPerHour;
@@ -56,9 +47,6 @@ static char * _formatSpeed(const int metersPerHour) {
 	return _printToString("%s%lld.%lld km/h", sign, tenths / 10, tenths % 10);
 }
 
-/**
- * Formats a string with "printf" semantics, in heap-memory.
- */
 static char * _printToString(const char * format, ...) {
 	va_list arguments;
 	va_start(arguments, format);

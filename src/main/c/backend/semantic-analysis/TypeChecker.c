@@ -22,11 +22,7 @@ ModuleDestructor initializeTypeCheckerModule() {
 
 typedef struct Check Check;
 
-/**
- * What every check needs: the visible symbols, the context of execution, and
- * the owner (the declaration being analyzed, e.g. 'policy "P"'), for the
- * messages.
- */
+/** The owner is the declaration being analyzed (e.g., 'policy "P"'), for the messages. */
 struct Check {
 	SymbolTable * symbolTable;
 	ExecutionContext context;
@@ -56,13 +52,10 @@ static void _logString(const StringLiteral * stringLiteral, const unsigned int i
 static ValueType _quantityType(const Unit unit);
 static const char * _unitSymbol(const Unit unit);
 
-/** The indentation of each level of the logged annotations. */
+/** The two arguments of a "%*s" that indents a logged line. */
 #define INDENT(depth) ((int) (4 * (depth))), ""
 
-/**
- * Appends to a reference what it resolves to in this instance, according to
- * its symbol and its type (ERROR if it has an error).
- */
+/** Each analysis of a declaration appends one resolution, so its index is the instance. */
 static void _annotate(Reference * reference, const Symbol * symbol, const ValueType type) {
 	reference->resolutions = realloc(reference->resolutions, (1 + reference->resolutionCount) * sizeof(Resolution));
 	Resolution * resolution = &reference->resolutions[reference->resolutionCount++];
@@ -99,9 +92,6 @@ static void _annotate(Reference * reference, const Symbol * symbol, const ValueT
 	}
 }
 
-/**
- * Checks a binary operation (spec-v3 §3.4), without folding it.
- */
 static ValueType _checkBinary(const Check * check, Expression * expression) {
 	const ValueType left = _checkExpression(check, expression->leftExpression);
 	const ValueType right = _checkExpression(check, expression->rightExpression);
@@ -116,12 +106,6 @@ static ValueType _checkBinary(const Check * check, Expression * expression) {
 	return type;
 }
 
-/**
- * The type of a builtin used as a value: only "elapsed" is one, a duration
- * in every context of execution. "trip" is only available in the metrics on
- * arrival (V06), and only through its member. The other builtins are
- * functions or events.
- */
 static ValueType _checkBuiltin(const Check * check, const Reference * reference, const Symbol * symbol) {
 	const char * name = symbol->name;
 	if (strcmp(name, "elapsed") == 0) {
@@ -142,12 +126,7 @@ static ValueType _checkBuiltin(const Check * check, const Reference * reference,
 	return ERROR_VALUE_TYPE;
 }
 
-/**
- * Checks a call. Only "queue" and "occupancy" are functions in a context of
- * execution: any other name is an unknown function, a policy used as an
- * expression, or an aggregator that is not the one of a metric (V15). The
- * arguments are checked anyway, to report their own errors.
- */
+/** The arguments of an invalid call are checked anyway, to report their own errors. */
 static ValueType _checkCall(const Check * check, const Call * call) {
 	const Symbol * symbol = lookupSymbol(check->symbolTable, call->identifier);
 	const bool builtin = symbol != NULL && symbol->symbolClass == BUILTIN_SYMBOL;
@@ -176,9 +155,6 @@ static ValueType _checkCall(const Check * check, const Call * call) {
 	return ERROR_VALUE_TYPE;
 }
 
-/**
- * Checks an expression, and annotates its static type.
- */
 static ValueType _checkExpression(const Check * check, Expression * expression) {
 	ValueType type = ERROR_VALUE_TYPE;
 	switch (expression->type) {
@@ -222,10 +198,6 @@ static ValueType _checkFactor(const Check * check, const Factor * factor) {
 	}
 }
 
-/**
- * Checks an "if": its condition must be a boolean (V04). An "else if" chain
- * is checked recursively.
- */
 static void _checkIf(const Check * check, const IfStatement * ifStatement) {
 	const ValueType condition = _checkExpression(check, ifStatement->condition);
 	if (condition != ERROR_VALUE_TYPE && condition != BOOLEAN_VALUE_TYPE) {
@@ -245,11 +217,6 @@ static void _checkIf(const Check * check, const IfStatement * ifStatement) {
 	}
 }
 
-/**
- * Checks a member access. The only member is "trip.travel_time", a duration
- * that is only available in the metrics on arrival (V06). Any other member
- * is unknown, in every context (V16).
- */
 static ValueType _checkMember(const Check * check, const Factor * factor) {
 	if (isBuiltinReference(check->symbolTable, factor->factor, "trip")) {
 		if (strcmp(factor->member, "travel_time") != 0) {
@@ -269,13 +236,6 @@ static ValueType _checkMember(const Check * check, const Factor * factor) {
 	return ERROR_VALUE_TYPE;
 }
 
-/**
- * Resolves a reference (V02 and V03), and annotates it. Its type is the type
- * of its value: the folded value of a constant or a loop variable, the
- * declared type of a parameter, or the class of an entity. Returns its
- * symbol (NULL if it has an error), and sets its type (ERROR if it has an
- * error).
- */
 static const Symbol * _checkReference(const Check * check, Reference * reference, ValueType * type) {
 	const Symbol * symbol = resolveReference(check->symbolTable, reference, check->owner, "identifier");
 	*type = ERROR_VALUE_TYPE;
@@ -300,11 +260,6 @@ static const Symbol * _checkReference(const Check * check, Reference * reference
 	return symbol;
 }
 
-/**
- * Checks a call to "queue" or "occupancy" (spec-v3 §3.6): its only argument
- * must be a road, either a parameter or a global road (V03). The result is an
- * integer.
- */
 static ValueType _checkRoadFunction(const Check * check, const Call * call) {
 	unsigned int count = 0;
 	ValueType type = ERROR_VALUE_TYPE;
@@ -331,11 +286,6 @@ static ValueType _checkRoadFunction(const Check * check, const Call * call) {
 	return INTEGER_VALUE_TYPE;
 }
 
-/**
- * Checks a statement of a policy: the road of an "extend" must be a road
- * (V03), and its duration must be a duration (V04). A "log" accepts any type
- * in its interpolations, and a "keep" has nothing to check.
- */
 static void _checkStatement(const Check * check, const Statement * statement) {
 	switch (statement->type) {
 		case EXTEND_STATEMENT: {
@@ -369,10 +319,7 @@ static void _checkStatements(const Check * check, const Block * block) {
 	}
 }
 
-/**
- * Checks the interpolations of a string, which accept any type (spec-v3
- * §3.8). If one of them has an error, the entire string has an error.
- */
+/** An interpolation accepts any type. */
 static ValueType _checkString(const Check * check, const StringLiteral * stringLiteral) {
 	bool failed = false;
 	for (const StringPart * part = stringLiteral->parts->first; part != NULL; part = part->next) {
@@ -383,9 +330,6 @@ static ValueType _checkString(const Check * check, const StringLiteral * stringL
 	return failed ? ERROR_VALUE_TYPE : STRING_VALUE_TYPE;
 }
 
-/**
- * Checks a unary operation (spec-v3 §3.4), without folding it.
- */
 static ValueType _checkUnary(const Check * check, Expression * expression) {
 	const ValueType operand = _checkExpression(check, expression->expression);
 	if (operand == ERROR_VALUE_TYPE) {
@@ -399,10 +343,6 @@ static ValueType _checkUnary(const Check * check, Expression * expression) {
 	return type;
 }
 
-/**
- * Describes what a reference resolves to in an instance, for the logs.
- * Returns a new string.
- */
 static char * _describeResolution(const Reference * reference, const unsigned int instance) {
 	if (reference->resolutionCount <= instance) {
 		return concatenate(1, "not annotated");
@@ -460,9 +400,6 @@ static void _logExpression(const Expression * expression, const unsigned int ins
 	}
 }
 
-/**
- * Logs a factor, whose type is the static type of its expression.
- */
 static void _logFactor(const Factor * factor, const char * type, const unsigned int instance, const unsigned int depth) {
 	switch (factor->type) {
 		case BOOLEAN_FACTOR:
@@ -501,10 +438,7 @@ static void _logFactor(const Factor * factor, const char * type, const unsigned 
 	}
 }
 
-/**
- * Logs an "if" of a policy (whose only instance is 0), and its "else if"
- * chain.
- */
+/** The body of a policy has a single instance: 0. */
 static void _logIf(const IfStatement * ifStatement, const char * keyword, const unsigned int depth) {
 	logDebugging(_logger, "%*s%s (line %d)", INDENT(depth), keyword, ifStatement->condition->line);
 	_logExpression(ifStatement->condition, 0, 1 + depth);
@@ -523,9 +457,6 @@ static void _logIf(const IfStatement * ifStatement, const char * keyword, const 
 	}
 }
 
-/**
- * Logs the statements of a policy, whose only instance is 0.
- */
 static void _logStatements(const Block * block, const unsigned int depth) {
 	for (const Statement * statement = block->first; statement != NULL; statement = statement->next) {
 		switch (statement->type) {
@@ -562,9 +493,6 @@ static void _logString(const StringLiteral * stringLiteral, const unsigned int i
 	}
 }
 
-/**
- * The type of a quantity, according to its unit (spec-v3 §3.4).
- */
 static ValueType _quantityType(const Unit unit) {
 	switch (unit) {
 		case KILOMETERS_UNIT:

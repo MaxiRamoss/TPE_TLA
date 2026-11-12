@@ -1,36 +1,13 @@
-/*
- * Vial runtime (spec-v3 §4 and §5).
- *
- * The compiler inserts this file, unchanged, into every HTML file it emits,
- * after the "vial-config" JSON and the generated VIAL_LOGIC. It has two
- * independent parts:
- *
- *   1. The ENGINE: the simulation model of §4, as plain functions with no DOM.
- *      It only reads the config (§5.2) and calls the generated logic (§5.3).
- *   2. The VIEWER: it reads "#vial-config" and VIAL_LOGIC, creates a
- *      simulation and draws it on the page (§5.4).
- *
- * From Node, require() returns the engine and the viewer does not run.
- */
-
-/* ========================================================================== */
-/* 1. ENGINE                                                                  */
-/* ========================================================================== */
+/* ENGINE */
 
 var VialEngine = (function () {
 	'use strict';
 
-	/** One cell (7.5 m) in accumulator units, which are 1/3600 m: 7.5 · 3600. */
+	/* A cell of 7.5 m, in accumulator units of 1/3600 m: a speed in m/h is the advance per second. */
 	const CELL = 27000;
 
-	/* ---------------------------------------------------------------------- */
-	/* Formatting (§3.8): a line-by-line port of formatValue (Value.c).       */
-	/* ---------------------------------------------------------------------- */
+	/* A line-by-line port of formatValue (Value.c): both must format exactly alike. */
 
-	/**
-	 * Formats a duration as "1 h 2 min 5 s", omitting the zeros ("0 s" if every
-	 * part is zero). A negative duration is prefixed with "-".
-	 */
 	function formatDuration(seconds) {
 		const total = Math.abs(seconds);
 		const hours = Math.floor(total / 3600);
@@ -49,11 +26,6 @@ var VialEngine = (function () {
 		return text;
 	}
 
-	/**
-	 * Formats a speed (in m/h) in km/h: as an integer if it is exact, or else
-	 * with one decimal, rounded half away from zero. A negative speed is
-	 * prefixed with "-".
-	 */
 	function formatSpeed(metersPerHour) {
 		const sign = metersPerHour < 0 ? '-' : '';
 		const magnitude = Math.abs(metersPerHour);
@@ -64,11 +36,6 @@ var VialEngine = (function () {
 		return sign + Math.floor(tenths / 10) + '.' + (tenths % 10) + ' km/h';
 	}
 
-	/**
-	 * Formats a value of a Vial type (its name, as in valueTypeName) for its
-	 * interpolation in a string. An entity formats as its label or, if it has
-	 * none, as its identifier; "nameOf(type, id)" resolves it.
-	 */
 	function formatValue(type, value, nameOf) {
 		switch (type) {
 			case 'boolean': return value ? 'true' : 'false';
@@ -82,25 +49,13 @@ var VialEngine = (function () {
 		}
 	}
 
-	/* ---------------------------------------------------------------------- */
-	/* Simulation                                                             */
-	/* ---------------------------------------------------------------------- */
-
-	/**
-	 * Maps the elements of an array by their "id". The maps by id have no
-	 * prototype, so ids such as "constructor" or "toString", which are valid in
-	 * Vial, find nothing that was not declared.
-	 */
+	/* Ids such as "constructor" or "toString" are valid in Vial, hence the bare map. */
 	function indexById(elements) {
 		const map = Object.create(null);
 		elements.forEach(function (element, k) { map[element.id] = k; });
 		return map;
 	}
 
-	/**
-	 * Creates a simulation from a "vial-config" object (§5.2) and VIAL_LOGIC
-	 * (§5.3). Each call to step() simulates one tick of 1 s (§4.4).
-	 */
 	function createSimulation(config, logic) {
 		const duration = config.simulation.duration;
 		const intersections = config.intersections || [];
@@ -112,7 +67,6 @@ var VialEngine = (function () {
 		const policies = (logic && logic.policies) || {};
 		const metricFunctions = (logic && logic.metrics) || [];
 
-		/* Lookup tables: entity class → (id → index), for name() and the queries. */
 		const entities = {
 			intersection: intersections,
 			road: roads,
@@ -127,43 +81,29 @@ var VialEngine = (function () {
 		});
 		const roadIndex = indexes.road;
 
-		/* The light that controls the end of each road (at most one, V13), or -1. */
 		const lightAtIntersection = Object.create(null);
 		lights.forEach(function (light, l) { lightAtIntersection[light.at] = l; });
 		const lightOfRoad = roads.map(function (road) {
 			return road.to in lightAtIntersection ? lightAtIntersection[road.to] : -1;
 		});
 
-		/* The roads of each flow's route, as road indexes. */
 		const flowRoutes = flows.map(function (flow) {
 			return routes[indexes.route[flow.route]].roads.map(function (id) { return roadIndex[id]; });
 		});
 
-		/* ---- State ---- */
-
-		/** The next tick to simulate, which is also the number of simulated ticks. */
 		let tick = 0;
 		let nextVehicleId = 1;
-		/** The cells of each road: null, or the vehicle that occupies it. */
 		let cells = roads.map(function (road) { return new Array(road.cells).fill(null); });
-		/** The maximum number of occupied cells of each road, at the end of a tick. */
 		const maxOccupied = roads.map(function () { return 0; });
-		/** The current phase of each light (an index) and its remaining seconds. */
 		const lightStates = lights.map(function (light) {
 			return { phase: 0, remaining: light.phases.length > 0 ? light.phases[0].duration : 0 };
 		});
-		/** The vehicles emitted by each flow, and those still waiting to enter. */
 		const flowStates = flows.map(function () { return { emitted: 0, waiting: [] }; });
-		/** The accumulator of each metric (§4.6). */
 		const accumulators = metrics.map(function () {
 			return { count: 0, sum: 0, minimum: null, maximum: null };
 		});
-		/** The events of the tick in progress (phase changes, arrivals and logs). */
 		let events = [];
-		/** The light whose policy is running, for extend(); -1 outside policies. */
 		let activeLight = -1;
-
-		/* ---- Queries (§3.6 and D18) ---- */
 
 		function occupiedCells(r) {
 			let count = 0;
@@ -175,15 +115,10 @@ var VialEngine = (function () {
 			return count;
 		}
 
-		/** ⌊100 · occupied / cells⌋. */
 		function occupancy(r) {
 			return Math.floor(100 * occupiedCells(r) / roads[r].cells);
 		}
 
-		/**
-		 * The contiguous block of stopped vehicles, counted from the end of the
-		 * road (D18).
-		 */
 		function queue(r) {
 			const row = cells[r];
 			let count = 0;
@@ -193,7 +128,6 @@ var VialEngine = (function () {
 			return count;
 		}
 
-		/** True if the road may cross its end: no light there, or the current phase enables it. */
 		function isGreen(r) {
 			const l = lightOfRoad[r];
 			if (l < 0) {
@@ -203,7 +137,6 @@ var VialEngine = (function () {
 			return phases.length > 0 && phases[lightStates[l].phase].roads.indexOf(roads[r].id) >= 0;
 		}
 
-		/** The label of an entity or, if it has none, its id. */
 		function nameOf(entityClass, id) {
 			if (!(entityClass in indexes) || !(id in indexes[entityClass])) {
 				return id;
@@ -212,7 +145,7 @@ var VialEngine = (function () {
 			return label !== null && label !== undefined ? label : id;
 		}
 
-		/* ---- The $ctx object of the generated logic (§5.3) ---- */
+		/* The $ctx that the generated policies and metrics receive. */
 
 		const ctx = {
 			elapsed: 0,
@@ -230,13 +163,10 @@ var VialEngine = (function () {
 			log: function (text) { events.push({ kind: 'log', tick: tick, text: String(text) }); },
 			name: nameOf,
 			fmt: function (type, value) { return formatValue(type, value, nameOf); },
-			/* Truncated integer division, and 0 if b = 0 (D21). "|| 0" turns a -0 into 0. */
+			/* Division by zero yields 0 at run time; "|| 0" turns a -0 into 0. */
 			div: function (a, b) { return b === 0 ? 0 : (Math.trunc(a / b) || 0); }
 		};
 
-		/* ---- Metrics (§4.6) ---- */
-
-		/** Evaluates the metrics of an event ("tick" or "arrival"), in order. */
 		function evaluateMetrics(event, trip) {
 			metrics.forEach(function (metric, m) {
 				if (metric.event !== event) {
@@ -271,9 +201,6 @@ var VialEngine = (function () {
 			}
 		}
 
-		/* ---- The steps of a tick (§4.4) ---- */
-
-		/** 1. Emission: each flow adds "spawn" vehicles to its external queue. */
 		function emit(t) {
 			flows.forEach(function (flow, f) {
 				if (flow.from <= t && t < Math.min(flow.to, duration) && (t - flow.from) % flow.every === 0) {
@@ -282,10 +209,10 @@ var VialEngine = (function () {
 							id: nextVehicleId++,
 							flow: f,
 							route: flowRoutes[f],
-							leg: 0,         /* the index of its current road in the route */
-							acc: 0,         /* the accumulator, in 1/3600 m (§4.2) */
-							born: t,        /* the tick of its emission (D17) */
-							stopped: false  /* see D18 and move() */
+							leg: 0,
+							acc: 0,
+							born: t, /* the travel time counts from here, including the wait to enter */
+							stopped: false
 						});
 					}
 					flowStates[f].emitted += flow.spawn;
@@ -293,7 +220,6 @@ var VialEngine = (function () {
 			});
 		}
 
-		/** 2. Policies: every "apply" of every light, in order. */
 		function runPolicies() {
 			lights.forEach(function (light, l) {
 				(light.apply || []).forEach(function (application) {
@@ -307,16 +233,11 @@ var VialEngine = (function () {
 			activeLight = -1;
 		}
 
-		/**
-		 * 3. Movement (§4.2 and §4.3). Every decision is taken on the state at the
-		 * beginning of the tick ("before"), and the new state is built apart, so
-		 * the order of the vehicles of a road does not matter. The roads are
-		 * visited in declaration order, which gives the priority of the crossings.
-		 */
+		/* Decisions use the state at the start of the tick, so the order of the vehicles of a road
+		 * does not matter. Roads go in declaration order, which gives the priority of crossings. */
 		function move(t) {
 			const before = cells;
 			const after = roads.map(function (road) { return new Array(road.cells).fill(null); });
-			/* True if a crossing already claimed cell 0 of the road in this tick. */
 			const claimed = roads.map(function () { return false; });
 			const arrivals = [];
 
@@ -334,11 +255,11 @@ var VialEngine = (function () {
 					}
 					let advanced = Math.min(wanted, free);
 					let destination = { road: r, cell: p + advanced };
-					/* At the end of the road with advance left: it tries to cross (one cell more). */
+					/* Crossing the end of the road counts as one cell. */
 					if (advanced < wanted && p + advanced === last && isGreen(r)) {
 						if (vehicle.leg === vehicle.route.length - 1) {
 							++advanced;
-							destination = null;     /* it leaves the network */
+							destination = null;
 							arrivals.push({ vehicle: vehicle, travelTime: t + 1 - vehicle.born });
 						}
 						else {
@@ -355,10 +276,10 @@ var VialEngine = (function () {
 						vehicle.acc -= advanced * CELL;
 					}
 					else {
-						vehicle.acc = 0;            /* it was blocked */
+						vehicle.acc = 0;
 					}
-					/* D18: stopped if it wanted to advance and did not advance any cell. With
-					 * wanted = 0 (the accumulator has not reached a cell yet) it is not stopped. */
+					/* A vehicle whose accumulator has not reached a cell yet is not stopped: queue() and the
+					 * viewer only count the ones that wanted to advance and could not. */
 					vehicle.stopped = 1 <= wanted && advanced === 0;
 					if (destination !== null) {
 						after[destination.road][destination.cell] = vehicle;
@@ -379,7 +300,6 @@ var VialEngine = (function () {
 			});
 		}
 
-		/** 4. Ingress: each flow inserts at most one waiting vehicle into cell 0 of its first road. */
 		function enter() {
 			flows.forEach(function (flow, f) {
 				const waiting = flowStates[f].waiting;
@@ -392,7 +312,6 @@ var VialEngine = (function () {
 			});
 		}
 
-		/** 5. Lights: the remaining time decreases, and at 0 the next phase starts (cyclically). */
 		function advanceLights(t) {
 			lights.forEach(function (light, l) {
 				const state = lightStates[l];
@@ -408,7 +327,6 @@ var VialEngine = (function () {
 			});
 		}
 
-		/** Simulates the tick t = tick (§4.4), and returns its events. */
 		function step() {
 			if (tick >= duration) {
 				return [];
@@ -429,7 +347,6 @@ var VialEngine = (function () {
 			return events;
 		}
 
-		/** The state to draw. Each cell is "empty", "moving" or "stopped". */
 		function state() {
 			return {
 				elapsed: tick,
@@ -453,7 +370,6 @@ var VialEngine = (function () {
 			};
 		}
 
-		/** The value of every metric, in declaration order. */
 		function metricValues() {
 			return metrics.map(function (metric, m) {
 				return {
@@ -467,11 +383,7 @@ var VialEngine = (function () {
 			});
 		}
 
-		/**
-		 * The content of "Exportar JSON" (§5.4). The values are in base units,
-		 * except the speeds, which go in km/h (and may have decimals), as their
-		 * unit says.
-		 */
+		/* The JSON of "Exportar JSON": each value in the unit of its metric, so speeds go in km/h. */
 		function report() {
 			return {
 				simulation: {
@@ -508,9 +420,7 @@ var VialEngine = (function () {
 	};
 })();
 
-/* ========================================================================== */
-/* 2. VIEWER                                                                  */
-/* ========================================================================== */
+/* VIEWER */
 
 if (typeof document !== 'undefined') {
 	(function () {
@@ -532,9 +442,7 @@ if (typeof document !== 'undefined') {
 		const metrics = config.metrics || [];
 		const formatValue = VialEngine.formatValue;
 
-		/* ---- Helpers ---- */
-
-		/* A map by id, with no prototype (see indexById in the engine). */
+		/* A bare map, as in indexById. */
 		function byId(elements) {
 			const map = Object.create(null);
 			elements.forEach(function (element) { map[element.id] = element; });
@@ -548,7 +456,6 @@ if (typeof document !== 'undefined') {
 		const lightAt = Object.create(null);
 		lights.forEach(function (light) { lightAt[light.at] = light; });
 
-		/** The visible name of an entity: its label or, if it has none, its id. */
 		function display(entity) {
 			return entity.label !== null && entity.label !== undefined ? entity.label : entity.id;
 		}
@@ -574,7 +481,6 @@ if (typeof document !== 'undefined') {
 			return node;
 		}
 
-		/** A time in seconds as "mm:ss", or as "h:mm:ss" if the simulation lasts 1 h or more. */
 		const withHours = 3600 <= duration;
 		function twoDigits(n) {
 			return (n < 10 ? '0' : '') + n;
@@ -587,12 +493,11 @@ if (typeof document !== 'undefined') {
 			return twoDigits(Math.floor(seconds / 60)) + ':' + s;
 		}
 
-		/** "1 calle", "2 calles". */
 		function amount(count, singular, plural) {
 			return count + ' ' + (count === 1 ? singular : plural);
 		}
 
-		/** ⌊100 · part / whole⌋, as the occupancy of the language. */
+		/* Truncated, like occupancy() in the language. */
 		function percent(part, whole) {
 			return Math.floor(100 * part / whole);
 		}
@@ -600,37 +505,21 @@ if (typeof document !== 'undefined') {
 		document.title = 'Vial · ' + display(simulation);
 		document.getElementById('scen').textContent = ' · ' + display(simulation);
 
-		/* ---- Map ---- */
-
-		/*
-		 * The map is drawn in meters. The coordinates are Cartesian (Y up) and the
-		 * SVG has Y down, so the screen position of an intersection is (x, −y).
-		 */
+		/* In meters. Vial has Y up and SVG has Y down, so an intersection is drawn at (x, −y). */
 		const position = Object.create(null);
 		intersections.forEach(function (n) { position[n.id] = [n.x, -n.y]; });
 
 		const svg = document.getElementById('map');
-		const cellRects = [];       /* the rectangles of the cells of each road */
-		const cellClasses = [];     /* their current class, to touch the DOM only on changes */
-		const lightDots = [];       /* { road: index, element } */
+		const cellRects = [];
+		const cellClasses = [];     /* to touch the DOM only on changes */
+		const lightDots = [];
 
 		function distanceBetween(a, b) {
 			return Math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]));
 		}
 
-		/*
-		 * Layout:
-		 *  - D is the size, in meters, of one "design pixel". Every fixed-size
-		 *    element (texts, nodes, arrows, dots, margins and offsets) is its size
-		 *    in design pixels times D, and the map is about MAP_WIDTH design pixels
-		 *    wide, so they look the same whatever the size of the network.
-		 *  - Each road keeps a margin M0 at its origin and M1 at its destination
-		 *    (at most a fraction of the road, for very short roads).
-		 *  - The cells have a single size for the whole map: the largest one that
-		 *    fits in the tightest road, between its margins. The run of cells
-		 *    starts at the origin of the road, and what is left is a thin approach
-		 *    to the destination, where the light is.
-		 */
+		/* D is the size of a design pixel in meters, so texts, nodes and margins look the same at any
+		 * scale. All the cells share one size: the largest that fits in the tightest road. */
 		const MAP_WIDTH = 800, PAD_X = 70, PAD_TOP = 58, PAD_BOTTOM = 68, M0 = 30, M1 = 46;
 		const xs = intersections.map(function (n) { return position[n.id][0]; });
 		const ys = intersections.map(function (n) { return position[n.id][1]; });
@@ -642,7 +531,7 @@ if (typeof document !== 'undefined') {
 		function marginsOf(length) {
 			return [Math.min(M0 * D, 0.2 * length), Math.min(M1 * D, 0.3 * length)];
 		}
-		let pitch = Infinity;       /* the length of a cell plus its gap */
+		let pitch = Infinity;
 		roads.forEach(function (road) {
 			const length = distanceBetween(position[road.from], position[road.to]);
 			const margins = marginsOf(length);
@@ -669,7 +558,6 @@ if (typeof document !== 'undefined') {
 				const group = svgElement('g', {
 					transform: 'translate(' + a[0] + ' ' + a[1] + ') rotate(' + (Math.atan2(dy, dx) * 180 / Math.PI) + ')'
 				}, svg);
-				/* The lane is offset only if the opposite road exists (two-way). */
 				const twoWay = roads.some(function (o) { return o !== road && o.from === road.to && o.to === road.from; });
 				const off = twoWay ? 10 * D : 0;
 				svgElement('line', { x1: 0, y1: off, x2: s0 - 2 * D, y2: off, 'class': 'conn' }, group);
@@ -689,7 +577,7 @@ if (typeof document !== 'undefined') {
 					cellClasses[r].push('c-emp');
 				}
 				const middle = s0 + run / 2;
-				const vertical = Math.abs(uy) > 0.7;      /* vertical road: the name goes aside */
+				const vertical = Math.abs(uy) > 0.7;
 				const lo = vertical ? off + 12 * D : off + 22 * D;
 				svgElement('text', {
 					x: a[0] + ux * middle + nx * lo,
@@ -714,7 +602,6 @@ if (typeof document !== 'undefined') {
 				svgElement('rect', {
 					x: p[0] - 9 * D, y: p[1] - 9 * D, width: 18 * D, height: 18 * D, rx: 4 * D, 'class': 'nodo'
 				}, svg);
-				/* The name goes below the node if some road arrives from above. */
 				const above = roads.some(function (road) {
 					return (road.from === n.id && position[road.to][1] < p[1]) ||
 						(road.to === n.id && position[road.from][1] < p[1]);
@@ -724,18 +611,16 @@ if (typeof document !== 'undefined') {
 					style: 'font-size:' + (12 * D) + 'px'
 				}, svg).textContent = display(n);
 			});
-			/* At least MAP_WIDTH design pixels wide, centered, so a narrow network is not enlarged. */
+			/* A narrow network is centered, not enlarged. */
 			const width = Math.max(x1 - x0 + 2 * PAD_X * D, MAP_WIDTH * D);
 			svg.setAttribute('viewBox', ((x0 + x1 - width) / 2) + ' ' + (y0 - PAD_TOP * D) + ' ' +
 				width + ' ' + (y1 - y0 + (PAD_TOP + PAD_BOTTOM) * D));
 		})();
 
-		/* ---- Panels ---- */
-
-		const lightRows = Object.create(null);     /* light id → its phase rows */
-		const metricValues = [];    /* { number, unit } elements of each metric value */
-		const roadBars = [];        /* { fill, mark, value } of each road */
-		const flowLive = [];        /* the live line of each flow */
+		const lightRows = Object.create(null);
+		const metricValues = [];
+		const roadBars = [];
+		const flowLive = [];
 
 		(function buildPanels() {
 			const lightPanel = document.getElementById('lpanel');
@@ -787,7 +672,6 @@ if (typeof document !== 'undefined') {
 			}
 			flows.forEach(function (flow) {
 				const row = element('div', 'flrow', flowPanel);
-				/* The route as its intersections: the origin of its first road, and then each destination. */
 				const route = routeById[flow.route].roads.map(function (id) { return roadById[id]; });
 				const stops = [route[0].from].concat(route.map(function (road) { return road.to; }));
 				element('div', 'flname', row).textContent = display(flow) + ' · ' +
@@ -796,10 +680,7 @@ if (typeof document !== 'undefined') {
 			});
 		})();
 
-		/**
-		 * A metric value with its unit: "—" if it is null, and an average with one
-		 * decimal. The speeds come in m/h and are shown in km/h.
-		 */
+		/* The engine gives the speeds in m/h, and they are shown in km/h. */
 		function metricText(metric) {
 			if (metric.value === null) {
 				return { value: '—', unit: '' };
@@ -810,14 +691,11 @@ if (typeof document !== 'undefined') {
 				return { value: value.toFixed(1), unit: unit };
 			}
 			if (metric.unit === 'km/h') {
-				/* The format of §3.8 ("40 km/h", "4.3 km/h"), without its unit. */
 				const text = formatValue('speed', metric.value);
 				return { value: text.slice(0, text.length - ' km/h'.length), unit: unit };
 			}
 			return { value: String(metric.value), unit: unit };
 		}
-
-		/* ---- Trace ---- */
 
 		const trace = document.getElementById('trace');
 		const TRACE_LINES = 150;
@@ -848,8 +726,6 @@ if (typeof document !== 'undefined') {
 				traceLine(event.tick, 'log', event.text);
 			}
 		}
-
-		/* ---- Simulation and drawing ---- */
 
 		let sim = null;
 		let running = false;
@@ -892,7 +768,6 @@ if (typeof document !== 'undefined') {
 			document.getElementById('tickbox').textContent = clock(state.elapsed) + ' / ' + clock(duration);
 		}
 
-		/** Simulates one tick, and stops at the end. */
 		function step() {
 			if (sim.done()) {
 				return;
@@ -917,8 +792,6 @@ if (typeof document !== 'undefined') {
 			render();
 		}
 
-		/* ---- Loop: the simulated time per real second is the multiplier (×1 … ×60) ---- */
-
 		const speed = document.getElementById('speed');
 		let last = 0, pending = 0;
 		function frame(timestamp) {
@@ -942,8 +815,6 @@ if (typeof document !== 'undefined') {
 				render();
 			}
 		}
-
-		/* ---- Controls ---- */
 
 		const runButton = document.getElementById('b-run');
 		const stepButton = document.getElementById('b-step');
