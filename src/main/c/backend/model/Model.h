@@ -19,8 +19,9 @@ ModuleDestructor initializeModelModule();
  * already formatted (NULL if it has no label), and the line of its
  * declaration. Magnitudes are in base units: m, s and m/h. A reference to
  * another entity is a pointer to it. While the analysis reports errors, a
- * reference that could not be resolved is NULL; the generator only receives
- * models without errors.
+ * reference that could not be resolved is NULL, and a position or a geometry
+ * with an error is marked as invalid; the generator only receives models
+ * without errors.
  */
 typedef struct Flow Flow;
 typedef struct Intersection Intersection;
@@ -40,6 +41,14 @@ struct Intersection {
 	/** The cartesian position, in m (Y grows towards the north). */
 	int x;
 	int y;
+	/**
+	 * False if the position has an error, or is relative to an invalid one.
+	 * An invalid position takes no part in any geometric calculation (V08 and
+	 * implicit lengths).
+	 */
+	bool validPosition;
+	/** The light at the intersection, or NULL if it has none. */
+	Light * light;
 };
 
 struct Road {
@@ -54,6 +63,13 @@ struct Road {
 	int cells;
 	/** The speed limit, in m/h (40 km/h by default). */
 	int limit;
+	/**
+	 * False if an endpoint is unresolved or has an invalid position, if the
+	 * road goes from an intersection to itself, or if the length has an
+	 * error (V07 included). An invalid road takes no part in any geometric
+	 * calculation, and its cells are 0.
+	 */
+	bool validGeometry;
 };
 
 /**
@@ -91,8 +107,9 @@ struct Light {
 };
 
 /**
- * A route: its intersections, in order. The roads of each leg are resolved
- * later (step 3).
+ * A route: its intersections, in order, and the road of each leg between two
+ * consecutive intersections (V09). A leg that could not be resolved has a
+ * NULL road.
  */
 struct Route {
 	char * id;
@@ -100,6 +117,9 @@ struct Route {
 	int line;
 	Intersection ** waypoints;
 	unsigned int waypointCount;
+	/** The road of each leg: there are "waypointCount - 1" of them. */
+	Road ** roads;
+	unsigned int roadCount;
 };
 
 /**

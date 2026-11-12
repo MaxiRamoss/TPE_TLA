@@ -1,0 +1,9 @@
+// El flujo F emite 0 vehículos por período: spawn tiene que ser positivo.
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road AB from A to B
+road BC from B to C
+route R = A -> B -> C
+flow F along R { spawn 0 every 10 s }

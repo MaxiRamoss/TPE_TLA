@@ -194,6 +194,7 @@ void destroyRoute(Route * route) {
 		free(route->id);
 		free(route->label);
 		free(route->waypoints);
+		free(route->roads);
 		free(route);
 	}
 }
@@ -208,15 +209,18 @@ void logModel(const Model * model) {
 	for (unsigned int k = 0; k < model->intersectionCount; ++k) {
 		const Intersection * intersection = model->intersections[k];
 		label = _labelOrEmpty(intersection->label);
-		logDebugging(_logger, "Intersection \"%s\"%s (line %d): at (%d m, %d m)",
-			intersection->id, label, intersection->line, intersection->x, intersection->y);
+		logDebugging(_logger, "Intersection \"%s\"%s (line %d): at (%d m, %d m)%s, light: %s",
+			intersection->id, label, intersection->line, intersection->x, intersection->y,
+			intersection->validPosition ? "" : " (invalid)",
+			intersection->light != NULL ? intersection->light->id : "none");
 		free(label);
 	}
 	for (unsigned int k = 0; k < model->roadCount; ++k) {
 		const Road * road = model->roads[k];
 		label = _labelOrEmpty(road->label);
-		logDebugging(_logger, "Road \"%s\"%s (line %d): from \"%s\" to \"%s\", length %d m, cells %d, limit %d m/h",
-			road->id, label, road->line, ID_OF(road->from), ID_OF(road->to), road->length, road->cells, road->limit);
+		logDebugging(_logger, "Road \"%s\"%s (line %d): from \"%s\" to \"%s\", length %d m, cells %d, limit %d m/h%s",
+			road->id, label, road->line, ID_OF(road->from), ID_OF(road->to), road->length, road->cells, road->limit,
+			road->validGeometry ? "" : " (invalid geometry)");
 		free(label);
 	}
 	for (unsigned int k = 0; k < model->lightCount; ++k) {
@@ -250,6 +254,9 @@ void logModel(const Model * model) {
 		free(label);
 		for (unsigned int j = 0; j < route->waypointCount; ++j) {
 			logDebugging(_logger, "    Waypoint \"%s\"", ID_OF(route->waypoints[j]));
+		}
+		for (unsigned int j = 0; j < route->roadCount; ++j) {
+			logDebugging(_logger, "    Leg %u: road \"%s\"", 1 + j, ID_OF(route->roads[j]));
 		}
 	}
 	for (unsigned int k = 0; k < model->flowCount; ++k) {

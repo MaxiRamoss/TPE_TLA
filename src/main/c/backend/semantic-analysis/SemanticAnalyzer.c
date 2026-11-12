@@ -53,7 +53,7 @@ static void _analyzeIntersection(const IntersectionDeclaration * declaration, co
 static void _analyzeLight(const LightDeclaration * declaration, const int line);
 static void _analyzeMetric(const MetricDeclaration * declaration, const int line);
 static void _analyzePolicy(const PolicyDeclaration * declaration, const int line);
-static void _analyzePosition(const Position * position, Intersection * intersection, const char * owner);
+static bool _analyzePosition(const Position * position, Intersection * intersection, const char * owner);
 static void _analyzeRoad(const RoadDeclaration * declaration, const int line);
 static void _analyzeRoute(const RouteDeclaration * declaration, const int line);
 static void _analyzeSimulation(const Simulation * simulation);
@@ -63,13 +63,23 @@ static bool _checkUndeclared(const char * name, const int line);
 static Symbol * _declare(const Reference * reference, const char * name, const SymbolClass symbolClass, const ValueType type, const int line);
 static char * _describe(const SymbolClass symbolClass, const char * name, const Reference * reference);
 static void _destroyReportedErrors();
+static bool _enables(const Light * light, const Road * road);
 static bool _euclideanDistance(const Intersection * from, const Intersection * to, int * distance);
 static Value * _evaluateField(const Expression * expression, const ValueType expected, const char * field, const char * owner);
 static bool _evaluateInteger(const Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer);
 static char * _evaluateLabel(const Expression * label, const char * owner);
+static bool _evaluatePositive(const Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer);
+static char * _formatMagnitude(const ValueType type, const int integer);
 static char * _kindName(const SymbolClass symbolClass, const ValueType type, const bool plural);
 static char * _resolveDeclaredName(const Reference * reference, const SymbolClass symbolClass, const ValueType type, const int line);
+static Road * _resolveLeg(const Route * route, const Intersection * from, const Intersection * to);
+static void _resolveRoutes();
+static char * _roadNames(const Intersection * from, const Intersection * to, const unsigned int count);
 static unsigned long long _squareRoot(const unsigned long long number);
+static void _validateIncomingRoads(const Light * light);
+static void _validateLights();
+static void _validatePhases(const Light * light);
+static void _validatePositions();
 static ValueType _valueTypeOfFundamentalType(const FundamentalType type);
 static ValueType _valueTypeOfParameterType(const ParameterType type);
 
@@ -139,7 +149,9 @@ static void _analyzeDeclarations(const Declarations * declarations) {
 }
 
 /**
- * Analyzes a flow. Without a window, it lasts the entire simulation.
+ * Analyzes a flow: its spawn and its period must be positive (V07). Without a
+ * window, it lasts the entire simulation; with one, it must start before it
+ * ends (V10).
  */
 static void _analyzeFlow(const FlowDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, FLOW_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -149,13 +161,21 @@ static void _analyzeFlow(const FlowDeclaration * declaration, const int line) {
 	const Symbol * route = resolveEntityReference(_symbolTable, declaration->route, ROUTE_SYMBOL, owner);
 	flow->route = route != NULL ? route->route : NULL;
 	flow->label = _evaluateLabel(declaration->label, owner);
-	_evaluateInteger(declaration->amount, INTEGER_VALUE_TYPE, "the spawn of", owner, &flow->spawn);
-	_evaluateInteger(declaration->period, DURATION_VALUE_TYPE, "the period of", owner, &flow->every);
+	_evaluatePositive(declaration->amount, INTEGER_VALUE_TYPE, "the spawn of", owner, &flow->spawn);
+	_evaluatePositive(declaration->period, DURATION_VALUE_TYPE, "the period of", owner, &flow->every);
 	flow->from = 0;
 	flow->to = _model->simulation.duration;
 	if (declaration->from != NULL) {
-		_evaluateInteger(declaration->from, DURATION_VALUE_TYPE, "the start of the window of", owner, &flow->from);
-		_evaluateInteger(declaration->to, DURATION_VALUE_TYPE, "the end of the window of", owner, &flow->to);
+		bool valid = _evaluateInteger(declaration->from, DURATION_VALUE_TYPE, "the start of the window of", owner, &flow->from);
+		valid = _evaluateInteger(declaration->to, DURATION_VALUE_TYPE, "the end of the window of", owner, &flow->to) && valid;
+		if (valid && flow->to <= flow->from) {
+			char * from = _formatMagnitude(DURATION_VALUE_TYPE, flow->from);
+			char * to = _formatMagnitude(DURATION_VALUE_TYPE, flow->to);
+			semanticError(declaration->from->line, "the window of %s must start before it ends, but it goes from %s to %s",
+				owner, from, to);
+			free(from);
+			free(to);
+		}
 	}
 	Symbol * symbol = name != NULL ? _declare(declaration->reference, name, FLOW_SYMBOL, ERROR_VALUE_TYPE, line) : NULL;
 	if (symbol != NULL) {
@@ -204,14 +224,15 @@ static void _analyzeFor(const ForDeclaration * declaration, const int line) {
 }
 
 /**
- * Analyzes an intersection: its position, in m, and its label.
+ * Analyzes an intersection: its position, in m (invalid if it has an error),
+ * and its label.
  */
 static void _analyzeIntersection(const IntersectionDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, INTERSECTION_SYMBOL, ERROR_VALUE_TYPE, line);
 	char * owner = _describe(INTERSECTION_SYMBOL, name, declaration->reference);
 	Intersection * intersection = calloc(1, sizeof(Intersection));
 	intersection->line = line;
-	_analyzePosition(declaration->position, intersection, owner);
+	intersection->validPosition = _analyzePosition(declaration->position, intersection, owner);
 	intersection->label = _evaluateLabel(declaration->label, owner);
 	Symbol * symbol = name != NULL ? _declare(declaration->reference, name, INTERSECTION_SYMBOL, ERROR_VALUE_TYPE, line) : NULL;
 	if (symbol != NULL) {
@@ -228,8 +249,9 @@ static void _analyzeIntersection(const IntersectionDeclaration * declaration, co
 
 /**
  * Analyzes a light: its intersection, the roads and the duration of each
- * phase, and the policy of each "apply" with its arguments (their arity and
- * types are checked in step 4).
+ * phase (which must be positive, V07), and the policy of each "apply" with
+ * its arguments (their arity and types are checked in step 4). The relation
+ * between its phases and its intersection is validated later, on the model.
  */
 static void _analyzeLight(const LightDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, LIGHT_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -266,7 +288,7 @@ static void _analyzeLight(const LightDeclaration * declaration, const int line) 
 			}
 			char field[48];
 			snprintf(field, sizeof(field), "the duration of phase %u of", phaseIndex);
-			_evaluateInteger(item->duration, DURATION_VALUE_TYPE, field, owner, &phase->duration);
+			_evaluatePositive(item->duration, DURATION_VALUE_TYPE, field, owner, &phase->duration);
 		}
 		else {
 			PolicyApplication * application = &light->applications[applicationIndex++];
@@ -362,19 +384,21 @@ static void _analyzePolicy(const PolicyDeclaration * declaration, const int line
 /**
  * Computes the position of an intersection, in m: absolute, or relative to
  * another intersection (Y grows towards the north, and X towards the east).
- * If it has an error, the position stays at the origin.
+ * Returns false if the position is invalid: it has an error, or it is
+ * relative to an intersection whose position is invalid (which produces no
+ * more errors).
  */
-static void _analyzePosition(const Position * position, Intersection * intersection, const char * owner) {
+static bool _analyzePosition(const Position * position, Intersection * intersection, const char * owner) {
 	if (position->type == ABSOLUTE_POSITION) {
-		_evaluateInteger(position->x, DISTANCE_VALUE_TYPE, "the x coordinate of", owner, &intersection->x);
-		_evaluateInteger(position->y, DISTANCE_VALUE_TYPE, "the y coordinate of", owner, &intersection->y);
-		return;
+		const bool validX = _evaluateInteger(position->x, DISTANCE_VALUE_TYPE, "the x coordinate of", owner, &intersection->x);
+		const bool validY = _evaluateInteger(position->y, DISTANCE_VALUE_TYPE, "the y coordinate of", owner, &intersection->y);
+		return validX && validY;
 	}
 	int distance = 0;
 	const bool valid = _evaluateInteger(position->distance, DISTANCE_VALUE_TYPE, "the relative distance of", owner, &distance);
 	const Symbol * origin = resolveEntityReference(_symbolTable, position->origin, INTERSECTION_SYMBOL, owner);
-	if (!valid || origin == NULL) {
-		return;
+	if (!valid || origin == NULL || !origin->intersection->validPosition) {
+		return false;
 	}
 	int x = origin->intersection->x;
 	int y = origin->intersection->y;
@@ -387,16 +411,18 @@ static void _analyzePosition(const Position * position, Intersection * intersect
 	}
 	if (overflow) {
 		semanticError(position->distance->line, "the position of %s overflows an integer", owner);
-		return;
+		return false;
 	}
 	intersection->x = x;
 	intersection->y = y;
+	return true;
 }
 
 /**
- * Analyzes a road: its intersections, its length (explicit, or else the
- * euclidean distance rounded to the meter), its speed limit (40 km/h by
- * default), its cells and its label.
+ * Analyzes a road: its intersections, which must be different (V07), its
+ * length (explicit and positive, or else the euclidean distance rounded to
+ * the meter), its speed limit (positive, and 40 km/h by default), its cells
+ * and its label. The implicit length needs two valid positions.
  */
 static void _analyzeRoad(const RoadDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, ROAD_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -407,17 +433,27 @@ static void _analyzeRoad(const RoadDeclaration * declaration, const int line) {
 	const Symbol * to = resolveEntityReference(_symbolTable, declaration->to, INTERSECTION_SYMBOL, owner);
 	road->from = from != NULL ? from->intersection : NULL;
 	road->to = to != NULL ? to->intersection : NULL;
-	if (declaration->length != NULL) {
-		_evaluateInteger(declaration->length, DISTANCE_VALUE_TYPE, "the length of", owner, &road->length);
+	const bool loop = road->from != NULL && road->from == road->to;
+	if (loop) {
+		semanticError(line, "%s goes from intersection \"%s\" to itself", owner, road->from->id);
 	}
-	else if (road->from != NULL && road->to != NULL && !_euclideanDistance(road->from, road->to, &road->length)) {
-		semanticError(line, "the length of %s overflows an integer", owner);
+	const bool positioned = road->from != NULL && road->to != NULL && road->from->validPosition && road->to->validPosition;
+	bool validLength = false;
+	if (declaration->length != NULL) {
+		validLength = _evaluatePositive(declaration->length, DISTANCE_VALUE_TYPE, "the length of", owner, &road->length);
+	}
+	else if (positioned) {
+		validLength = _euclideanDistance(road->from, road->to, &road->length);
+		if (!validLength) {
+			semanticError(line, "the length of %s overflows an integer", owner);
+		}
 	}
 	road->limit = _defaultLimit;
 	if (declaration->limit != NULL) {
-		_evaluateInteger(declaration->limit, SPEED_VALUE_TYPE, "the limit of", owner, &road->limit);
+		_evaluatePositive(declaration->limit, SPEED_VALUE_TYPE, "the limit of", owner, &road->limit);
 	}
-	road->cells = _cells(road->length);
+	road->validGeometry = positioned && validLength && !loop;
+	road->cells = road->validGeometry ? _cells(road->length) : 0;
 	road->label = _evaluateLabel(declaration->label, owner);
 	Symbol * symbol = name != NULL ? _declare(declaration->reference, name, ROAD_SYMBOL, ERROR_VALUE_TYPE, line) : NULL;
 	if (symbol != NULL) {
@@ -433,8 +469,8 @@ static void _analyzeRoad(const RoadDeclaration * declaration, const int line) {
 }
 
 /**
- * Analyzes a route: its waypoints are intersections. The roads of each leg
- * are resolved in step 3.
+ * Analyzes a route: its waypoints are intersections. The roads of its legs
+ * are resolved later, on the model, so they can be declared after it.
  */
 static void _analyzeRoute(const RouteDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, ROUTE_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -471,7 +507,7 @@ static void _analyzeSimulation(const Simulation * simulation) {
 	char * owner = concatenate(3, "simulation \"", simulation->identifier, "\"");
 	_model->simulation.id = concatenate(1, simulation->identifier);
 	_model->simulation.label = _evaluateLabel(simulation->label, owner);
-	_evaluateInteger(simulation->duration, DURATION_VALUE_TYPE, "the duration of", owner, &_model->simulation.duration);
+	_evaluatePositive(simulation->duration, DURATION_VALUE_TYPE, "the duration of", owner, &_model->simulation.duration);
 	free(owner);
 }
 
@@ -579,6 +615,22 @@ static void _destroyReportedErrors() {
 }
 
 /**
+ * True if some phase of the light enables the road. With a NULL road, true
+ * if some phase has a road that could not be resolved.
+ */
+static bool _enables(const Light * light, const Road * road) {
+	for (unsigned int k = 0; k < light->phaseCount; ++k) {
+		const Phase * phase = &light->phases[k];
+		for (unsigned int j = 0; j < phase->roadCount; ++j) {
+			if (phase->roads[j] == road) {
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+/**
  * The euclidean distance between two intersections, rounded to the meter,
  * with an integer square root (no libm). Returns false if it does not fit in
  * an integer.
@@ -653,6 +705,38 @@ static char * _evaluateLabel(const Expression * label, const char * owner) {
 }
 
 /**
+ * Evaluates an integer or a magnitude of the expected type (V04), which must
+ * be positive (V07). Returns false if it has an error, or if it is not
+ * positive.
+ */
+static bool _evaluatePositive(const Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer) {
+	Value * value = _evaluateField(expression, expected, field, owner);
+	if (value == NULL) {
+		return false;
+	}
+	*integer = value->integer;
+	const bool positive = 0 < value->integer;
+	if (!positive) {
+		char * text = formatValue(value, NULL);
+		semanticError(expression->line, "%s %s must be positive, but it is %s", field, owner, text);
+		free(text);
+	}
+	destroyValue(value);
+	return positive;
+}
+
+/**
+ * Formats a magnitude in base units for messages (spec-v3 §3.8). Returns a
+ * new string.
+ */
+static char * _formatMagnitude(const ValueType type, const int integer) {
+	Value * value = createIntegerValue(type, integer);
+	char * text = formatValue(value, NULL);
+	destroyValue(value);
+	return text;
+}
+
+/**
  * The kind of a declared name, for messages: its class (e.g., "a road" or
  * "roads") or, for a constant, also its type ("an integer constant").
  */
@@ -706,6 +790,82 @@ static char * _resolveDeclaredName(const Reference * reference, const SymbolClas
 }
 
 /**
+ * Resolves the road of a leg of a route, from a waypoint to the next one: it
+ * must be the only road in that direction (V09). Returns NULL if the leg has
+ * no road or more than one, or if a waypoint is unresolved. A leg without a
+ * road produces no error if a road with an unresolved endpoint could be its
+ * road (spec-v3 D15).
+ */
+static Road * _resolveLeg(const Route * route, const Intersection * from, const Intersection * to) {
+	if (from == NULL || to == NULL) {
+		return NULL;
+	}
+	Road * road = NULL;
+	unsigned int count = 0;
+	bool unresolved = false;
+	for (unsigned int k = 0; k < _model->roadCount; ++k) {
+		Road * candidate = _model->roads[k];
+		if (candidate->from == from && candidate->to == to) {
+			road = candidate;
+			++count;
+		}
+		else if ((candidate->from == NULL || candidate->from == from) && (candidate->to == NULL || candidate->to == to)) {
+			unresolved = true;
+		}
+	}
+	if (count == 1) {
+		return road;
+	}
+	if (1 < count) {
+		char * names = _roadNames(from, to, count);
+		semanticError(route->line, "the leg from intersection \"%s\" to intersection \"%s\" of route \"%s\" is ambiguous, with %u roads: %s",
+			from->id, to->id, route->id, count, names);
+		free(names);
+	}
+	else if (!unresolved) {
+		semanticError(route->line, "the leg from intersection \"%s\" to intersection \"%s\" of route \"%s\" has no road",
+			from->id, to->id, route->id);
+	}
+	return NULL;
+}
+
+/**
+ * Resolves the roads of the legs of every route (V09), once every road has
+ * been declared.
+ */
+static void _resolveRoutes() {
+	for (unsigned int k = 0; k < _model->routeCount; ++k) {
+		Route * route = _model->routes[k];
+		route->roadCount = route->waypointCount - 1;
+		route->roads = calloc(route->roadCount, sizeof(Road *));
+		for (unsigned int j = 0; j < route->roadCount; ++j) {
+			route->roads[j] = _resolveLeg(route, route->waypoints[j], route->waypoints[1 + j]);
+		}
+	}
+}
+
+/**
+ * The names of the roads from an intersection to another one, in order of
+ * declaration, for messages (e.g., '"AB1", "AB2" and "AB3"'). The count is
+ * the number of such roads. Returns a new string.
+ */
+static char * _roadNames(const Intersection * from, const Intersection * to, const unsigned int count) {
+	char * names = concatenate(1, "");
+	unsigned int index = 0;
+	for (unsigned int k = 0; k < _model->roadCount; ++k) {
+		const Road * road = _model->roads[k];
+		if (road->from == from && road->to == to) {
+			const char * separator = (index == 0) ? "" : (index + 1 == count) ? " and " : ", ";
+			char * next = concatenate(5, names, separator, "\"", road->id, "\"");
+			free(names);
+			names = next;
+			++index;
+		}
+	}
+	return names;
+}
+
+/**
  * The integer square root of a number, rounded down (bit by bit).
  */
 static unsigned long long _squareRoot(const unsigned long long number) {
@@ -726,6 +886,86 @@ static unsigned long long _squareRoot(const unsigned long long number) {
 		bit >>= 2;
 	}
 	return root;
+}
+
+/**
+ * Every road that enters the intersection of a light must be enabled by some
+ * of its phases (V12), with an error for each missing road. If a phase has a
+ * road that could not be resolved, it could be any of them, so the light is
+ * not checked (spec-v3 D15).
+ */
+static void _validateIncomingRoads(const Light * light) {
+	if (_enables(light, NULL)) {
+		return;
+	}
+	for (unsigned int k = 0; k < _model->roadCount; ++k) {
+		const Road * road = _model->roads[k];
+		if (road->to == light->at && !_enables(light, road)) {
+			semanticError(light->line, "road \"%s\" enters intersection \"%s\", but no phase of light \"%s\" enables it",
+				road->id, light->at->id, light->id);
+		}
+	}
+}
+
+/**
+ * Validates the lights, in order of declaration: each one must be the only
+ * light at its intersection (V13), which keeps a pointer to the first one,
+ * and its phases must match the roads that enter its intersection (V11 and
+ * V12). A light whose intersection is unresolved is not checked.
+ */
+static void _validateLights() {
+	for (unsigned int k = 0; k < _model->lightCount; ++k) {
+		Light * light = _model->lights[k];
+		Intersection * at = light->at;
+		if (at == NULL) {
+			continue;
+		}
+		if (at->light == NULL) {
+			at->light = light;
+		}
+		else {
+			semanticError(light->line, "light \"%s\" is at intersection \"%s\", which already has light \"%s\"",
+				light->id, at->id, at->light->id);
+		}
+		_validatePhases(light);
+		_validateIncomingRoads(light);
+	}
+}
+
+/**
+ * Every road of every phase of a light must enter the intersection of the
+ * light (V11). A road with an unresolved destination is not checked.
+ */
+static void _validatePhases(const Light * light) {
+	for (unsigned int k = 0; k < light->phaseCount; ++k) {
+		const Phase * phase = &light->phases[k];
+		for (unsigned int j = 0; j < phase->roadCount; ++j) {
+			const Road * road = phase->roads[j];
+			if (road != NULL && road->to != NULL && road->to != light->at) {
+				semanticError(phase->line, "phase %u of light \"%s\" enables road \"%s\", which does not enter intersection \"%s\"",
+					1 + k, light->id, road->id, light->at->id);
+			}
+		}
+	}
+}
+
+/**
+ * Two intersections with valid positions cannot be at the same position
+ * (V08). Each intersection is reported against the first one declared at its
+ * position, so n intersections at the same position produce n - 1 errors.
+ */
+static void _validatePositions() {
+	for (unsigned int k = 0; k < _model->intersectionCount; ++k) {
+		const Intersection * intersection = _model->intersections[k];
+		for (unsigned int j = 0; intersection->validPosition && j < k; ++j) {
+			const Intersection * first = _model->intersections[j];
+			if (first->validPosition && first->x == intersection->x && first->y == intersection->y) {
+				semanticError(intersection->line, "intersection \"%s\" is at (%d m, %d m), the same position as intersection \"%s\"",
+					intersection->id, intersection->x, intersection->y, first->id);
+				break;
+			}
+		}
+	}
 }
 
 static ValueType _valueTypeOfFundamentalType(const FundamentalType type) {
@@ -766,6 +1006,9 @@ CompilationStatus executeSemanticAnalysis(CompilerState * compilerState) {
 	_symbolTable = createSymbolTable();
 	_analyzeSimulation(program->simulation);
 	_analyzeDeclarations(program->declarations);
+	_validatePositions();
+	_validateLights();
+	_resolveRoutes();
 	logSymbolTable(_symbolTable);
 	destroySymbolTable(_symbolTable);
 	_symbolTable = NULL;
