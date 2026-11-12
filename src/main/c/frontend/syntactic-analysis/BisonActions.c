@@ -177,52 +177,58 @@ Path * AppendWaypointSemanticAction(Path * path, Reference * reference) {
 	return path;
 }
 
-LightItem * ApplyLightItemSemanticAction(Call * call) {
+LightItem * ApplyLightItemSemanticAction(Call * call, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	LightItem * lightItem = calloc(1, sizeof(LightItem));
 	lightItem->call = call;
 	lightItem->type = APPLY_LIGHT_ITEM;
+	lightItem->line = line;
 	return lightItem;
 }
 
-Expression * BinaryExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type) {
+Expression * BinaryExpressionSemanticAction(Expression * leftExpression, Expression * rightExpression, ExpressionType type, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Expression * expression = calloc(1, sizeof(Expression));
 	expression->leftExpression = leftExpression;
 	expression->rightExpression = rightExpression;
 	expression->type = type;
+	expression->line = line;
 	return expression;
 }
 
-Factor * BooleanFactorSemanticAction(const bool value) {
+Factor * BooleanFactorSemanticAction(const bool value, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->boolean = value;
 	factor->type = BOOLEAN_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
-Factor * CallFactorSemanticAction(Call * call) {
+Factor * CallFactorSemanticAction(Call * call, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->call = call;
 	factor->type = CALL_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
-Call * CallSemanticAction(char * identifier, Arguments * arguments) {
+Call * CallSemanticAction(char * identifier, Arguments * arguments, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Call * call = calloc(1, sizeof(Call));
 	call->identifier = identifier;
 	call->arguments = arguments;
+	call->line = line;
 	return call;
 }
 
-Declaration * ConstantDeclarationDeclarationSemanticAction(ConstantDeclaration * constantDeclaration) {
+Declaration * ConstantDeclarationDeclarationSemanticAction(ConstantDeclaration * constantDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->constantDeclaration = constantDeclaration;
 	declaration->type = CONSTANT_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -275,36 +281,40 @@ StringParts * EmptyStringPartsSemanticAction() {
 	return calloc(1, sizeof(StringParts));
 }
 
-Factor * ExpressionFactorSemanticAction(Expression * expression) {
+Factor * ExpressionFactorSemanticAction(Expression * expression, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->expression = expression;
 	factor->type = EXPRESSION_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
-Statement * ExtendStatementSemanticAction(Reference * road, Expression * duration) {
+Statement * ExtendStatementSemanticAction(Reference * road, Expression * duration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Statement * statement = calloc(1, sizeof(Statement));
 	statement->road = road;
 	statement->duration = duration;
 	statement->type = EXTEND_STATEMENT;
+	statement->line = line;
 	return statement;
 }
 
-Expression * FactorExpressionSemanticAction(Factor * factor) {
+Expression * FactorExpressionSemanticAction(Factor * factor, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Expression * expression = calloc(1, sizeof(Expression));
 	expression->factor = factor;
 	expression->type = FACTOR;
+	expression->line = line;
 	return expression;
 }
 
-Declaration * FlowDeclarationDeclarationSemanticAction(FlowDeclaration * flowDeclaration) {
+Declaration * FlowDeclarationDeclarationSemanticAction(FlowDeclaration * flowDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->flowDeclaration = flowDeclaration;
 	declaration->type = FLOW_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -321,11 +331,12 @@ FlowDeclaration * FlowDeclarationSemanticAction(Reference * reference, Reference
 	return flowDeclaration;
 }
 
-Declaration * ForDeclarationDeclarationSemanticAction(ForDeclaration * forDeclaration) {
+Declaration * ForDeclarationDeclarationSemanticAction(ForDeclaration * forDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->forDeclaration = forDeclaration;
 	declaration->type = FOR_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -344,10 +355,11 @@ ParameterType FundamentalParameterTypeSemanticAction(const FundamentalType funda
 	return _fundamentalParameterTypes[fundamentalType];
 }
 
-Reference * IdentifierReferenceSemanticAction(char * identifier) {
+Reference * IdentifierReferenceSemanticAction(char * identifier, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Reference * reference = calloc(1, sizeof(Reference));
 	reference->identifier = identifier;
+	reference->line = line;
 	return reference;
 }
 
@@ -380,35 +392,39 @@ IfStatement * IfStatementSemanticAction(Expression * condition, Block * thenBloc
 	return ifStatement;
 }
 
-Statement * IfStatementStatementSemanticAction(IfStatement * ifStatement) {
+Statement * IfStatementStatementSemanticAction(IfStatement * ifStatement, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Statement * statement = calloc(1, sizeof(Statement));
 	statement->ifStatement = ifStatement;
 	statement->type = IF_STATEMENT;
+	statement->line = line;
 	return statement;
 }
 
-Reference * IndexedReferenceSemanticAction(char * identifier, Expression * index) {
+Reference * IndexedReferenceSemanticAction(char * identifier, Expression * index, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Reference * reference = calloc(1, sizeof(Reference));
 	reference->identifier = identifier;
 	reference->index = index;
+	reference->line = line;
 	return reference;
 }
 
-Factor * IntegerFactorSemanticAction(const int value) {
+Factor * IntegerFactorSemanticAction(const int value, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->integer = value;
 	factor->type = INTEGER_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
-Declaration * IntersectionDeclarationDeclarationSemanticAction(IntersectionDeclaration * intersectionDeclaration) {
+Declaration * IntersectionDeclarationDeclarationSemanticAction(IntersectionDeclaration * intersectionDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->intersectionDeclaration = intersectionDeclaration;
 	declaration->type = INTERSECTION_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -421,18 +437,20 @@ IntersectionDeclaration * IntersectionDeclarationSemanticAction(Reference * refe
 	return intersectionDeclaration;
 }
 
-Statement * KeepStatementSemanticAction() {
+Statement * KeepStatementSemanticAction(const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Statement * statement = calloc(1, sizeof(Statement));
 	statement->type = KEEP_STATEMENT;
+	statement->line = line;
 	return statement;
 }
 
-Declaration * LightDeclarationDeclarationSemanticAction(LightDeclaration * lightDeclaration) {
+Declaration * LightDeclarationDeclarationSemanticAction(LightDeclaration * lightDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->lightDeclaration = lightDeclaration;
 	declaration->type = LIGHT_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -446,28 +464,31 @@ LightDeclaration * LightDeclarationSemanticAction(Reference * reference, Referen
 	return lightDeclaration;
 }
 
-Statement * LogStatementSemanticAction(StringLiteral * message) {
+Statement * LogStatementSemanticAction(StringLiteral * message, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Statement * statement = calloc(1, sizeof(Statement));
 	statement->message = message;
 	statement->type = LOG_STATEMENT;
+	statement->line = line;
 	return statement;
 }
 
-Factor * MemberAccessFactorSemanticAction(Factor * object, char * member) {
+Factor * MemberAccessFactorSemanticAction(Factor * object, char * member, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->factor = object;
 	factor->member = member;
 	factor->type = MEMBER_ACCESS_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
-Declaration * MetricDeclarationDeclarationSemanticAction(MetricDeclaration * metricDeclaration) {
+Declaration * MetricDeclarationDeclarationSemanticAction(MetricDeclaration * metricDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->metricDeclaration = metricDeclaration;
 	declaration->type = METRIC_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -489,20 +510,22 @@ Parameter * ParameterSemanticAction(const ParameterType type, char * identifier)
 	return parameter;
 }
 
-LightItem * PhaseLightItemSemanticAction(References * roads, Expression * duration) {
+LightItem * PhaseLightItemSemanticAction(References * roads, Expression * duration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	LightItem * lightItem = calloc(1, sizeof(LightItem));
 	lightItem->roads = roads;
 	lightItem->duration = duration;
 	lightItem->type = PHASE_LIGHT_ITEM;
+	lightItem->line = line;
 	return lightItem;
 }
 
-Declaration * PolicyDeclarationDeclarationSemanticAction(PolicyDeclaration * policyDeclaration) {
+Declaration * PolicyDeclarationDeclarationSemanticAction(PolicyDeclaration * policyDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->policyDeclaration = policyDeclaration;
 	declaration->type = POLICY_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -520,11 +543,11 @@ Program * ProgramSemanticAction(Simulation * simulation, Declarations * declarat
 	Program * program = calloc(1, sizeof(Program));
 	program->simulation = simulation;
 	program->declarations = declarations;
-	_compilerState->abstractSyntaxtTree = program;
+	_compilerState->abstractSyntaxTree = program;
 	return program;
 }
 
-Factor * QuantityFactorSemanticAction(const int value, const Unit unit) {
+Factor * QuantityFactorSemanticAction(const int value, const Unit unit, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Quantity * quantity = calloc(1, sizeof(Quantity));
 	quantity->value = value;
@@ -532,14 +555,16 @@ Factor * QuantityFactorSemanticAction(const int value, const Unit unit) {
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->quantity = quantity;
 	factor->type = QUANTITY_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
-Factor * ReferenceFactorSemanticAction(Reference * reference) {
+Factor * ReferenceFactorSemanticAction(Reference * reference, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->reference = reference;
 	factor->type = REFERENCE_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
@@ -553,11 +578,12 @@ Position * RelativePositionSemanticAction(Expression * distance, const Direction
 	return position;
 }
 
-Declaration * RoadDeclarationDeclarationSemanticAction(RoadDeclaration * roadDeclaration) {
+Declaration * RoadDeclarationDeclarationSemanticAction(RoadDeclaration * roadDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->roadDeclaration = roadDeclaration;
 	declaration->type = ROAD_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -573,11 +599,12 @@ RoadDeclaration * RoadDeclarationSemanticAction(Reference * reference, Reference
 	return roadDeclaration;
 }
 
-Declaration * RouteDeclarationDeclarationSemanticAction(RouteDeclaration * routeDeclaration) {
+Declaration * RouteDeclarationDeclarationSemanticAction(RouteDeclaration * routeDeclaration, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Declaration * declaration = calloc(1, sizeof(Declaration));
 	declaration->routeDeclaration = routeDeclaration;
 	declaration->type = ROUTE_DECLARATION;
+	declaration->line = line;
 	return declaration;
 }
 
@@ -599,11 +626,12 @@ Simulation * SimulationSemanticAction(char * identifier, Expression * label, Exp
 	return simulation;
 }
 
-Factor * StringFactorSemanticAction(StringLiteral * stringLiteral) {
+Factor * StringFactorSemanticAction(StringLiteral * stringLiteral, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Factor * factor = calloc(1, sizeof(Factor));
 	factor->stringLiteral = stringLiteral;
 	factor->type = STRING_FACTOR;
+	factor->line = line;
 	return factor;
 }
 
@@ -614,10 +642,11 @@ StringLiteral * StringLiteralSemanticAction(StringParts * stringParts) {
 	return stringLiteral;
 }
 
-Expression * UnaryExpressionSemanticAction(Expression * operand, ExpressionType type) {
+Expression * UnaryExpressionSemanticAction(Expression * operand, ExpressionType type, const int line) {
 	_logSyntacticAnalyzerAction(__FUNCTION__);
 	Expression * expression = calloc(1, sizeof(Expression));
 	expression->expression = operand;
 	expression->type = type;
+	expression->line = line;
 	return expression;
 }

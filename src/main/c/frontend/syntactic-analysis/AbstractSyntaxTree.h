@@ -216,6 +216,8 @@ struct Declaration {
 	};
 	DeclarationType type;
 	Declaration * next;
+	/** The line of the keyword that begins the declaration. */
+	int line;
 };
 
 struct ConstantDeclaration {
@@ -289,6 +291,8 @@ struct LightItem {
 	};
 	LightItemType type;
 	LightItem * next;
+	/** The line of the source code where the node begins. */
+	int line;
 };
 
 /**
@@ -381,6 +385,8 @@ struct Statement {
 	};
 	StatementType type;
 	Statement * next;
+	/** The line of the source code where the node begins. */
+	int line;
 };
 
 /**
@@ -423,6 +429,8 @@ struct Reference {
 	char * identifier;
 	/** NULL if the reference is not indexed. */
 	Expression * index;
+	/** The line of the source code where the node begins. */
+	int line;
 };
 
 struct Expression {
@@ -435,6 +443,8 @@ struct Expression {
 		};
 	};
 	ExpressionType type;
+	/** The line of the source code where the node begins. */
+	int line;
 };
 
 struct Factor {
@@ -452,6 +462,8 @@ struct Factor {
 		};
 	};
 	FactorType type;
+	/** The line of the source code where the node begins. */
+	int line;
 };
 
 struct Quantity {
@@ -462,6 +474,8 @@ struct Quantity {
 struct Call {
 	char * identifier;
 	Arguments * arguments;
+	/** The line of the source code where the node begins. */
+	int line;
 };
 
 /**

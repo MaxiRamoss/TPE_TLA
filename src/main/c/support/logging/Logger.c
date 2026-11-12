@@ -8,18 +8,15 @@ static void _logInStream(FILE * const stream, const char * const format, va_list
 static const char * _toContextString(const LoggingLevel loggingLevel);
 
 /**
- * Logs a new message at the specified level, using a format string.
+ * Logs a new message at the specified level, using a format string. Every
+ * level is logged in stderr, because stdout is reserved for the generated
+ * output.
  */
 static void _log(const Logger * logger, const LoggingLevel loggingLevel, const char * const format, va_list arguments) {
 	if (logger->loggingLevel <= loggingLevel) {
 		const char * context = _toContextString(loggingLevel);
 		char * effectiveFormat = concatenate(6, context, "[", logger->name, "] ", format, "\n");
-		if (ERROR <= loggingLevel) {
-			_logInStream(stderr, effectiveFormat, arguments);
-		}
-		else {
-			_logInStream(stdout, effectiveFormat, arguments);
-		}
+		_logInStream(stderr, effectiveFormat, arguments);
 		free(effectiveFormat);
 	}
 }

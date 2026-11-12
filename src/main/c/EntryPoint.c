@@ -1,4 +1,6 @@
 #include "backend/code-generation/Generator.h"
+#include "backend/model/Model.h"
+#include "backend/semantic-analysis/SemanticAnalyzer.h"
 #include "frontend/Frontend.h"
 #include "frontend/lexical-analysis/FlexActions.h"
 #include "frontend/syntactic-analysis/BisonActions.h"
@@ -19,27 +21,40 @@ const int main(const int length, const char ** arguments) {
 		logDebugging(logger, "Argument %d: \"%s\"", k, arguments[k]);
 	}
 	CompilerState compilerState = {
-		.abstractSyntaxtTree = NULL
+		.abstractSyntaxTree = NULL,
+		.model = NULL
 	};
 	ModuleDestructor moduleDestructors[] = {
 		initializeAbstractSyntaxTreeModule(),
 		initializeFlexActionsModule(lexicalAnalyzer),
 		initializeBisonActionsModule(&compilerState),
 		initializeFrontendModule(lexicalAnalyzer),
+		initializeSemanticAnalyzerModule(),
 		initializeGeneratorModule()
 	};
 	CompilationStatus compilationStatus = executeSyntacticAnalysis();
-	Program * program = compilerState.abstractSyntaxtTree;
+	Program * program = compilerState.abstractSyntaxTree;
 	if (compilationStatus == SUCCEEDED) {
 		// ----------------------------------------------------------------------------------------
 		// Beginning of the Backend... ------------------------------------------------------------
-		executeGenerator(&compilerState);
+		compilationStatus = executeSemanticAnalysis(&compilerState);
+		if (compilationStatus == SUCCEEDED) {
+			executeGenerator(&compilerState);
+		}
+		else {
+			logError(logger, "The semantic-analysis phase rejects the input program.");
+			compilationStatus = FAILED;
+		}
 		// ...end of the Backend. -----------------------------------------------------------------
 		// ----------------------------------------------------------------------------------------
 	}
 	else {
 		logError(logger, "The syntactic-analysis phase rejects the input program.");
 		compilationStatus = FAILED;
+	}
+	if (compilerState.model != NULL) {
+		logDebugging(logger, "Releasing model resources...");
+		destroyModel(compilerState.model);
 	}
 	logDebugging(logger, "Releasing AST resources...");
 	destroyProgram(program);

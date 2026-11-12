@@ -315,19 +315,19 @@ declarations: %empty											{ $$ = EmptyDeclarationsSemanticAction(); }
 	| declarations declaration									{ $$ = AppendDeclarationSemanticAction($1, $2); }
 	;
 
-declaration: constantDeclaration								{ $$ = ConstantDeclarationDeclarationSemanticAction($1); }
-	| intersectionDeclaration									{ $$ = IntersectionDeclarationDeclarationSemanticAction($1); }
-	| roadDeclaration											{ $$ = RoadDeclarationDeclarationSemanticAction($1); }
-	| lightDeclaration											{ $$ = LightDeclarationDeclarationSemanticAction($1); }
-	| routeDeclaration											{ $$ = RouteDeclarationDeclarationSemanticAction($1); }
-	| flowDeclaration											{ $$ = FlowDeclarationDeclarationSemanticAction($1); }
-	| policyDeclaration											{ $$ = PolicyDeclarationDeclarationSemanticAction($1); }
-	| metricDeclaration											{ $$ = MetricDeclarationDeclarationSemanticAction($1); }
-	| forDeclaration											{ $$ = ForDeclarationDeclarationSemanticAction($1); }
+declaration: constantDeclaration								{ $$ = ConstantDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| intersectionDeclaration									{ $$ = IntersectionDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| roadDeclaration											{ $$ = RoadDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| lightDeclaration											{ $$ = LightDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| routeDeclaration											{ $$ = RouteDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| flowDeclaration											{ $$ = FlowDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| policyDeclaration											{ $$ = PolicyDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| metricDeclaration											{ $$ = MetricDeclarationDeclarationSemanticAction($1, @$.first_line); }
+	| forDeclaration											{ $$ = ForDeclarationDeclarationSemanticAction($1, @$.first_line); }
 	;
 
-reference: ID													{ $$ = IdentifierReferenceSemanticAction($1); }
-	| ID OPEN_BRACKET expression CLOSE_BRACKET					{ $$ = IndexedReferenceSemanticAction($1, $3); }
+reference: ID													{ $$ = IdentifierReferenceSemanticAction($1, @$.first_line); }
+	| ID OPEN_BRACKET expression CLOSE_BRACKET					{ $$ = IndexedReferenceSemanticAction($1, $3, @$.first_line); }
 	;
 
 labelOpt: %empty												{ $$ = NULL; }
@@ -376,8 +376,8 @@ lightItems: lightItem											{ $$ = AppendLightItemSemanticAction(EmptyLightI
 	| lightItems lightItem										{ $$ = AppendLightItemSemanticAction($1, $2); }
 	;
 
-lightItem: PHASE GREEN FOR references DURING expression			{ $$ = PhaseLightItemSemanticAction($4, $6); }
-	| APPLY call												{ $$ = ApplyLightItemSemanticAction($2); }
+lightItem: PHASE GREEN FOR references DURING expression			{ $$ = PhaseLightItemSemanticAction($4, $6, @$.first_line); }
+	| APPLY call												{ $$ = ApplyLightItemSemanticAction($2, @$.first_line); }
 	;
 
 references: reference											{ $$ = AppendReferenceSemanticAction(EmptyReferencesSemanticAction(), $1); }
@@ -427,10 +427,10 @@ statements: %empty												{ $$ = EmptyBlockSemanticAction(); }
 	| statements statement										{ $$ = AppendStatementSemanticAction($1, $2); }
 	;
 
-statement: ifStatement											{ $$ = IfStatementStatementSemanticAction($1); }
-	| EXTEND reference BY expression							{ $$ = ExtendStatementSemanticAction($2, $4); }
-	| KEEP														{ $$ = KeepStatementSemanticAction(); }
-	| LOG string												{ $$ = LogStatementSemanticAction($2); }
+statement: ifStatement											{ $$ = IfStatementStatementSemanticAction($1, @$.first_line); }
+	| EXTEND reference BY expression							{ $$ = ExtendStatementSemanticAction($2, $4, @$.first_line); }
+	| KEEP														{ $$ = KeepStatementSemanticAction(@$.first_line); }
+	| LOG string												{ $$ = LogStatementSemanticAction($2, @$.first_line); }
 	;
 
 ifStatement: IF expression block								{ $$ = IfStatementSemanticAction($2, $3); }
@@ -444,34 +444,34 @@ metricDeclaration: METRIC reference EQUAL call ON ID labelOpt	{ $$ = MetricDecla
 forDeclaration: FOR ID IN expression RANGE expression OPEN_BRACE declarations CLOSE_BRACE	{ $$ = ForDeclarationSemanticAction($2, $4, $6, $8); }
 	;
 
-expression: expression[left] OR expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, DISJUNCTION); }
-	| expression[left] AND expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, CONJUNCTION); }
-	| NOT expression											{ $$ = UnaryExpressionSemanticAction($2, LOGICAL_NEGATION); }
-	| expression[left] EQUAL expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, EQUALITY); }
-	| expression[left] NOT_EQUAL expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, INEQUALITY); }
-	| expression[left] LESS expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, LESS_THAN); }
-	| expression[left] LESS_EQUAL expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, LESS_THAN_OR_EQUAL_TO); }
-	| expression[left] GREATER expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, GREATER_THAN); }
-	| expression[left] GREATER_EQUAL expression[right]			{ $$ = BinaryExpressionSemanticAction($left, $right, GREATER_THAN_OR_EQUAL_TO); }
-	| expression[left] ADD expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, ADDITION); }
-	| expression[left] SUB expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, SUBTRACTION); }
-	| expression[left] MUL expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, MULTIPLICATION); }
-	| expression[left] DIV expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, DIVISION); }
-	| SUB expression %prec UNARY_MINUS							{ $$ = UnaryExpressionSemanticAction($2, ARITHMETIC_NEGATION); }
-	| factor													{ $$ = FactorExpressionSemanticAction($1); }
+expression: expression[left] OR expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, DISJUNCTION, @$.first_line); }
+	| expression[left] AND expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, CONJUNCTION, @$.first_line); }
+	| NOT expression											{ $$ = UnaryExpressionSemanticAction($2, LOGICAL_NEGATION, @$.first_line); }
+	| expression[left] EQUAL expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, EQUALITY, @$.first_line); }
+	| expression[left] NOT_EQUAL expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, INEQUALITY, @$.first_line); }
+	| expression[left] LESS expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, LESS_THAN, @$.first_line); }
+	| expression[left] LESS_EQUAL expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, LESS_THAN_OR_EQUAL_TO, @$.first_line); }
+	| expression[left] GREATER expression[right]				{ $$ = BinaryExpressionSemanticAction($left, $right, GREATER_THAN, @$.first_line); }
+	| expression[left] GREATER_EQUAL expression[right]			{ $$ = BinaryExpressionSemanticAction($left, $right, GREATER_THAN_OR_EQUAL_TO, @$.first_line); }
+	| expression[left] ADD expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, ADDITION, @$.first_line); }
+	| expression[left] SUB expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, SUBTRACTION, @$.first_line); }
+	| expression[left] MUL expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, MULTIPLICATION, @$.first_line); }
+	| expression[left] DIV expression[right]					{ $$ = BinaryExpressionSemanticAction($left, $right, DIVISION, @$.first_line); }
+	| SUB expression %prec UNARY_MINUS							{ $$ = UnaryExpressionSemanticAction($2, ARITHMETIC_NEGATION, @$.first_line); }
+	| factor													{ $$ = FactorExpressionSemanticAction($1, @$.first_line); }
 	;
 
-factor: OPEN_PARENTHESIS expression CLOSE_PARENTHESIS			{ $$ = ExpressionFactorSemanticAction($2); }
-	| INTEGER													{ $$ = IntegerFactorSemanticAction($1); }
-	| INTEGER unit												{ $$ = QuantityFactorSemanticAction($1, $2); }
-	| BOOLEAN													{ $$ = BooleanFactorSemanticAction($1); }
-	| string													{ $$ = StringFactorSemanticAction($1); }
-	| reference													{ $$ = ReferenceFactorSemanticAction($1); }
-	| call														{ $$ = CallFactorSemanticAction($1); }
-	| factor DOT ID												{ $$ = MemberAccessFactorSemanticAction($1, $3); }
+factor: OPEN_PARENTHESIS expression CLOSE_PARENTHESIS			{ $$ = ExpressionFactorSemanticAction($2, @$.first_line); }
+	| INTEGER													{ $$ = IntegerFactorSemanticAction($1, @$.first_line); }
+	| INTEGER unit												{ $$ = QuantityFactorSemanticAction($1, $2, @$.first_line); }
+	| BOOLEAN													{ $$ = BooleanFactorSemanticAction($1, @$.first_line); }
+	| string													{ $$ = StringFactorSemanticAction($1, @$.first_line); }
+	| reference													{ $$ = ReferenceFactorSemanticAction($1, @$.first_line); }
+	| call														{ $$ = CallFactorSemanticAction($1, @$.first_line); }
+	| factor DOT ID												{ $$ = MemberAccessFactorSemanticAction($1, $3, @$.first_line); }
 	;
 
-call: ID OPEN_PARENTHESIS argumentsOpt CLOSE_PARENTHESIS		{ $$ = CallSemanticAction($1, $3); }
+call: ID OPEN_PARENTHESIS argumentsOpt CLOSE_PARENTHESIS		{ $$ = CallSemanticAction($1, $3, @$.first_line); }
 	;
 
 argumentsOpt: %empty											{ $$ = EmptyArgumentsSemanticAction(); }
