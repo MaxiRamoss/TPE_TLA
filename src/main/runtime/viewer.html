@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vial</title>
+<style>
+  body { margin: 0; background: #f5f4f0; color: #23221e;
+         font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+  a { color: #3d6b9e; } a:hover { color: #2a4d75; }
+  .mono { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+          font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 16px 22px 26px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .brand { font-size: 17px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; }
+  .brand small { font-weight: 400; color: #8b877c; font-size: 13px; margin-left: 8px; }
+  .spacer { flex: 1; }
+  button, select { font: inherit; font-size: 13px; white-space: nowrap; color: #23221e; background: #fff;
+    border: 1px solid #c9c6bd; border-radius: 5px; padding: 5px 12px; cursor: pointer; }
+  button:hover, select:hover { border-color: #98948a; }
+  button:disabled { color: #b0aca0; border-color: #dcd9cf; cursor: default; }
+  #tickbox { font-size: 13px; background: #eae8e0; border-radius: 5px; padding: 6px 10px; white-space: nowrap; }
+  .grid { display: grid; grid-template-columns: 1fr 316px; gap: 14px; align-items: stretch; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .col { display: grid; gap: 14px; align-content: start; }
+  .card { background: #fff; border: 1px solid #e0ddd4; border-radius: 6px; padding: 12px 14px; }
+  .card.map { display: flex; flex-direction: column; }
+  .card.map svg { flex: 1 1 auto; min-height: 0; max-height: 75vh; }
+  .full { grid-column: 1 / -1; }
+  svg { display: block; width: 100%; height: auto; }
+  .c-emp { fill: #edebe4; stroke: #dcd9cf; stroke-width: 1; }
+  .c-mov { fill: #2c2b26; }
+  .c-det { fill: #c25e00; }
+  .conn { stroke: #dcd9cf; stroke-width: 3; stroke-linecap: round; }
+  .arrow { fill: #6b675c; }
+  .flrow { padding: 5px 0; }
+  .flname { font-size: 12.5px; font-weight: 600; }
+  .fllive { display: block; font-size: 11.5px; color: #6f6b60; margin-top: 2px; }
+  .d-verde { fill: #2f8a4c; stroke: #fff; stroke-width: 1.5; }
+  .d-rojo  { fill: #c0392b; stroke: #fff; stroke-width: 1.5; }
+  .nodo { fill: #fff; stroke: #57544b; stroke-width: 1.5; }
+  .c-emp, .conn, .d-verde, .d-rojo, .nodo { vector-effect: non-scaling-stroke; }
+  .nlab { font: 600 12px system-ui, sans-serif; fill: #4d4a42; }
+  .slab { font: 11.5px system-ui, sans-serif; fill: #8b877c; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-size: 11.5px; color: #6f6b60; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .sw { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .sw-mov { background: #2c2b26; }
+  .sw-det { background: #c25e00; }
+  .empty { font-size: 12.5px; color: #8b877c; }
+  .mapmsg { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 240px; }
+  .light + .light { margin-top: 12px; }
+  .light-h { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .ph { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 4px;
+        font-size: 12.5px; color: #6f6b60; }
+  .ph.on { background: #edf3ed; color: #23221e; }
+  .phdot { width: 8px; height: 8px; border-radius: 50%; background: #d5d2c8; flex: none; }
+  .ph.on .phdot { background: #2f8a4c; }
+  .phtxt { flex: 1; }
+  .phrem { font-size: 12px; color: #8b877c; }
+  .ph.on .phrem { color: #2f8a4c; font-weight: 600; }
+  .bigrow { display: flex; flex-wrap: wrap; gap: 12px 26px; margin-bottom: 12px; }
+  .big { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.1; white-space: nowrap; }
+  .big small { font-size: 14px; font-weight: 500; color: #8b877c; }
+  .lbl { font-size: 11.5px; color: #8b877c; margin-top: 2px; }
+  .strow { display: grid; grid-template-columns: 96px 1fr auto; gap: 8px; align-items: center;
+           padding: 4px 0; font-size: 12.5px; }
+  .strow > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .strow .val { font-size: 11.5px; color: #6f6b60; white-space: nowrap; }
+  .bar { height: 8px; background: #edebe4; border-radius: 4px; position: relative; }
+  .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: #6b675c; border-radius: 4px; }
+  .bar em { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #c25e00; }
+  #trace { max-height: 168px; overflow-y: auto; font-size: 12px; line-height: 1.55; }
+  #trace .ln { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tk { color: #b0aca0; }
+  .t-veh { color: #7a766b; } .t-fase { color: #2f8a4c; }
+  .t-log { color: #3d6b9e; } .t-sis { color: #7a766b; }
+</style>
+</head>
+<body>
+
+<!--
+  Viewer of a Vial simulation (spec-v3 §5.4). This file has no scenario data:
+  the compiler replaces the three markers at the end of the body with the
+  "vial-config" JSON, the generated VIAL_LOGIC and runtime.js, in that order.
+-->
+
+<div class="wrap">
+  <header>
+    <div class="brand">Vial<small id="scen"></small></div>
+    <div class="spacer"></div>
+    <button id="b-run">Pausar</button>
+    <button id="b-step">Paso</button>
+    <button id="b-reset">Reinicio</button>
+    <select id="speed" title="segundos simulados por segundo real">
+      <option value="1">×1</option>
+      <option value="2">×2</option>
+      <option value="5">×5</option>
+      <option value="10" selected>×10</option>
+      <option value="30">×30</option>
+      <option value="60">×60</option>
+    </select>
+    <button id="b-export">Exportar JSON</button>
+    <div id="tickbox" class="mono"></div>
+  </header>
+
+  <div class="grid">
+    <div class="card map">
+      <svg id="map" aria-label="mapa de la red vial"></svg>
+      <div class="legend" id="legend">
+        <span><i class="sw sw-mov"></i>en movimiento</span>
+        <span><i class="sw sw-det"></i>detenido</span>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <div id="lpanel"></div>
+      </div>
+      <div class="card">
+        <div id="m-program" class="bigrow"></div>
+        <div id="m-streets"></div>
+      </div>
+      <div class="card">
+        <div id="fpanel"></div>
+      </div>
+    </div>
+    <div class="card full">
+      <div id="trace" class="mono"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VIAL:CONFIG -->
+<!-- VIAL:LOGIC -->
+<!-- VIAL:RUNTIME -->
+</body></html>
