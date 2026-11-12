@@ -1,6 +1,8 @@
 #include "backend/code-generation/Generator.h"
 #include "backend/model/Model.h"
+#include "backend/semantic-analysis/Evaluator.h"
 #include "backend/semantic-analysis/SemanticAnalyzer.h"
+#include "backend/semantic-analysis/SymbolTable.h"
 #include "frontend/Frontend.h"
 #include "frontend/lexical-analysis/FlexActions.h"
 #include "frontend/syntactic-analysis/BisonActions.h"
@@ -29,6 +31,9 @@ const int main(const int length, const char ** arguments) {
 		initializeFlexActionsModule(lexicalAnalyzer),
 		initializeBisonActionsModule(&compilerState),
 		initializeFrontendModule(lexicalAnalyzer),
+		initializeModelModule(),
+		initializeSymbolTableModule(),
+		initializeEvaluatorModule(),
 		initializeSemanticAnalyzerModule(),
 		initializeGeneratorModule()
 	};

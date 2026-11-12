@@ -1,0 +1,7 @@
+// queue solo existe en las policies y las métricas, y X es una constante de compilación.
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road AB from A to B
+integer X = queue(AB)

@@ -1,0 +1,10 @@
+simulation S { duration 1 h }
+for i in 0 .. 2 {
+	for j in 0 .. 2 {
+		intersection N[i * 3 + j] at (j * 100 m, i * 100 m)
+	}
+	for j in 1 .. 2 {
+		road Este[i * 3 + j] from N[i * 3 + j - 1] to N[i * 3 + j]
+		road Oeste[i * 3 + j] from N[i * 3 + j] to N[i * 3 + j - 1]
+	}
+}
