@@ -139,7 +139,7 @@ Como ejemplo completo, ver [`src/test/c/accept/25-full-scenario.itba`](src/test/
 
 ## Validaciones semánticas
 
-Cada error semántico se reporta con el formato `Semantic error at line N: <mensaje>`. El compilador reporta cada error del programa, no solo el primero. Una expresión con un error no produce más errores en cascada, y un error que se repite en cada iteración de un `for` se reporta una sola vez.
+Cada error semántico se reporta con el formato `Semantic error at line N: <mensaje>`. El compilador reporta cada error del programa, no solo el primero. Una expresión con un error no produce más errores en cascada, y un mensaje idéntico en la misma línea (por ejemplo, el que se repite en cada iteración de un `for`) se reporta una sola vez.
 
 Cada símbolo se declara antes de usarse, y no hay shadowing. Las reglas que se validan son:
 
@@ -218,7 +218,7 @@ Cada test es un programa Vial en un archivo `NN-nombre.itba` dentro de `src/test
 | Carpeta   | Contenido                                                                                                                       |
 | :-------- | :------------------------------------------------------------------------------------------------------------------------------ |
 | `accept/` | 30 programas válidos, que el compilador acepta (código de salida `0`) y para los que emite HTML.                                 |
-| `reject/` | 40 programas con un único defecto, que el compilador rechaza: del 01 al 15, léxicos y sintácticos, y del 16 al 40, semánticos. La primera línea de cada uno es un comentario que explica su defecto. |
+| `reject/` | 40 programas con un único defecto, que el compilador rechaza: del 01 al 15, léxicos y sintácticos, y del 16 al 40, semánticos. Los semánticos (16 a 40) llevan en la primera línea un comentario que explica su defecto. |
 
 `test.sh` ejecuta cada archivo de `accept/` y de `reject/`, mira solo el código de salida y termina con `0` únicamente si cada test da el resultado esperado. La carpeta `ignore/` ya no existe, pero `test.sh` sigue imprimiendo la sección de tests ignorados, vacía, porque el script es el del proyecto base.
 
