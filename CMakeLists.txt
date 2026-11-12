@@ -49,6 +49,7 @@ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 		src/main/c/frontend/syntactic-analysis/BisonParser.c
 		src/main/c/support/configuration/Environment.c
 		src/main/c/support/language/String.c
+		src/main/c/support/language/StringBuilder.c
 		src/main/c/support/logging/Logger.c
 		# Add more *.c files if needed (otherwise, they won't be compiled).
 		# ...

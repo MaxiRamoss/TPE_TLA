@@ -46,7 +46,10 @@ const int main(const int length, const char ** arguments) {
 		// Beginning of the Backend... ------------------------------------------------------------
 		compilationStatus = executeSemanticAnalysis(&compilerState);
 		if (compilationStatus == SUCCEEDED) {
-			executeGenerator(&compilerState);
+			compilationStatus = executeGenerator(&compilerState);
+			if (compilationStatus != SUCCEEDED) {
+				logError(logger, "The code-generation phase cannot emit the program.");
+			}
 		}
 		else {
 			logError(logger, "The semantic-analysis phase rejects the input program.");
