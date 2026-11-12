@@ -3,6 +3,7 @@
 
 #include "../../support/logging/Logger.h"
 #include "../../support/type/ModuleDestructor.h"
+#include "../../support/type/ValueType.h"
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -24,6 +25,7 @@ typedef enum FundamentalType FundamentalType;
 typedef enum LightItemType LightItemType;
 typedef enum ParameterType ParameterType;
 typedef enum PositionType PositionType;
+typedef enum ResolutionType ResolutionType;
 typedef enum StatementType StatementType;
 typedef enum StringPartType StringPartType;
 typedef enum Unit Unit;
@@ -55,6 +57,7 @@ typedef struct Quantity Quantity;
 typedef struct Reference Reference;
 typedef struct ReferenceItem ReferenceItem;
 typedef struct References References;
+typedef struct Resolution Resolution;
 typedef struct RoadDeclaration RoadDeclaration;
 typedef struct RouteDeclaration RouteDeclaration;
 typedef struct Simulation Simulation;
@@ -158,6 +161,21 @@ enum ParameterType {
 enum PositionType {
 	ABSOLUTE_POSITION,
 	RELATIVE_POSITION
+};
+
+/**
+ * What a reference in a context of execution resolves to (spec-v3 §3.5): a
+ * builtin (e.g., "elapsed"), a constant or a loop variable (with its folded
+ * value), a global entity (with its resolved identifier), or a parameter of
+ * its policy. ERROR if the reference has an error.
+ */
+enum ResolutionType {
+	BUILTIN_RESOLUTION,
+	CONSTANT_RESOLUTION,
+	ENTITY_RESOLUTION,
+	ERROR_RESOLUTION,
+	LOOP_VARIABLE_RESOLUTION,
+	PARAMETER_RESOLUTION
 };
 
 enum StatementType {
@@ -412,6 +430,12 @@ struct MetricDeclaration {
 	char * event;
 	/** NULL if the metric has no label. */
 	Expression * label;
+	/**
+	 * The number of times that the semantic analysis analyzed the
+	 * declaration: one for each iteration of the "for" loops that contain
+	 * it (spec-v3 §3.3), and one if it is not in a loop.
+	 */
+	unsigned int instanceCount;
 };
 
 /**
@@ -431,6 +455,36 @@ struct Reference {
 	Expression * index;
 	/** The line of the source code where the node begins. */
 	int line;
+	/**
+	 * Annotated by the semantic analysis for a reference in a context of
+	 * execution (a body of a policy, or an argument of a metric): what it
+	 * resolves to in each instance of its declaration, in order. A metric
+	 * declared in a "for" has one instance for each iteration, and the same
+	 * reference may resolve to a different symbol in each one; a policy of a
+	 * valid program has a single instance. Empty in any other context.
+	 */
+	Resolution * resolutions;
+	unsigned int resolutionCount;
+};
+
+struct Resolution {
+	union {
+		/** PARAMETER_RESOLUTION: its position (0 for the first one). */
+		unsigned int parameter;
+		/**
+		 * CONSTANT_RESOLUTION and LOOP_VARIABLE_RESOLUTION: the folded
+		 * value, according to its type (a magnitude is an integer in base
+		 * units).
+		 */
+		bool boolean;
+		int integer;
+		char * string;
+		/** ENTITY_RESOLUTION: the resolved identifier (e.g., "Tramo[3]"). */
+		char * identifier;
+	};
+	ResolutionType type;
+	/** The type of the referenced value (ERROR for ERROR_RESOLUTION). */
+	ValueType valueType;
 };
 
 struct Expression {
@@ -445,6 +499,11 @@ struct Expression {
 	ExpressionType type;
 	/** The line of the source code where the node begins. */
 	int line;
+	/**
+	 * The static type of the expression (spec-v3 §2), annotated by the
+	 * semantic analysis: ERROR if it has an error.
+	 */
+	ValueType staticType;
 };
 
 struct Factor {
@@ -543,6 +602,8 @@ void destroyQuantity(Quantity * quantity);
 void destroyReference(Reference * reference);
 void destroyReferenceItem(ReferenceItem * referenceItem);
 void destroyReferences(References * references);
+/** Destroys the resources of a resolution, which lives in an array of its reference. */
+void destroyResolution(Resolution * resolution);
 void destroyRoadDeclaration(RoadDeclaration * roadDeclaration);
 void destroyRouteDeclaration(RouteDeclaration * routeDeclaration);
 void destroySimulation(Simulation * simulation);

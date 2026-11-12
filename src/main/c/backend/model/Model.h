@@ -23,6 +23,9 @@ ModuleDestructor initializeModelModule();
  * with an error is marked as invalid; the generator only receives models
  * without errors.
  */
+typedef enum Aggregator Aggregator;
+typedef enum Event Event;
+
 typedef struct Flow Flow;
 typedef struct Intersection Intersection;
 typedef struct Light Light;
@@ -33,6 +36,21 @@ typedef struct Policy Policy;
 typedef struct PolicyApplication PolicyApplication;
 typedef struct Road Road;
 typedef struct Route Route;
+
+/** The aggregator of a metric (spec-v3 §3.6 and §4.6). */
+enum Aggregator {
+	AVERAGE_AGGREGATOR,
+	COUNT_AGGREGATOR,
+	MAXIMUM_AGGREGATOR,
+	MINIMUM_AGGREGATOR,
+	SUM_AGGREGATOR
+};
+
+/** The event after which a metric is evaluated (spec-v3 §3.6). */
+enum Event {
+	ARRIVAL_EVENT,
+	TICK_EVENT
+};
 
 struct Intersection {
 	char * id;
@@ -84,8 +102,8 @@ struct Phase {
 };
 
 /**
- * An "apply" of a light: its policy, and its arguments already evaluated.
- * Their arity and types are checked against the policy later (step 4).
+ * An "apply" of a light: its policy, and its arguments already evaluated, in
+ * base units. Their arity and types match the parameters of the policy (V14).
  */
 struct PolicyApplication {
 	Policy * policy;
@@ -139,8 +157,10 @@ struct Flow {
 };
 
 /**
- * A policy: the types of its parameters, and its declaration in the AST. Its
- * body is analyzed later (step 4). A policy has no label (always NULL).
+ * A policy: the types of its parameters, and its declaration in the AST,
+ * whose body is not copied: its expressions are annotated with their static
+ * types and with what each reference resolves to. A policy has no label
+ * (always NULL).
  */
 struct Policy {
 	char * id;
@@ -152,14 +172,25 @@ struct Policy {
 };
 
 /**
- * A metric: its declaration in the AST, whose aggregator and event are
- * analyzed later (step 4).
+ * A metric: its aggregator, its event, and the argument of its aggregator,
+ * which points to the annotated expression of the AST (NULL for "count").
+ * The unit of its result is "s", "m" or "km/h" for a magnitude, and NULL for
+ * "count" and for an integer (a static string, never freed).
+ *
+ * Its instance is the position of its declaration among the instances that
+ * the unrolling analyzed (0 if it is not in a "for"): each reference of its
+ * argument resolves to "resolutions[instance]".
  */
 struct Metric {
 	char * id;
 	char * label;
 	int line;
 	const MetricDeclaration * declaration;
+	Aggregator aggregator;
+	Event event;
+	const Expression * argument;
+	const char * unit;
+	unsigned int instance;
 };
 
 struct Model {
@@ -230,7 +261,15 @@ void destroyRoad(Road * road);
 void destroyRoute(Route * route);
 
 /**
- * Logs the entire model at DEBUGGING level.
+ * The names of an aggregator and an event, as written in the source code
+ * (e.g., "count" and "arrival").
+ */
+const char * aggregatorName(const Aggregator aggregator);
+const char * eventName(const Event event);
+
+/**
+ * Logs the entire model at DEBUGGING level, including the annotations of the
+ * bodies of the policies and of the arguments of the metrics.
  */
 void logModel(const Model * model);
 

@@ -1,0 +1,6 @@
+// trip solo tiene el miembro travel_time: waiting_time no existe.
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+metric M = average(trip.waiting_time) on arrival

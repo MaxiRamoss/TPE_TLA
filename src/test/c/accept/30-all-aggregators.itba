@@ -1,0 +1,13 @@
+simulation S { duration 1 h }
+intersection A at (0 m, 0 m)
+intersection B at 100 m east of A
+intersection C at 100 m east of B
+road AB from A to B
+road BC from B to C
+route R = A -> B -> C
+flow F along R { spawn 1 every 8 s }
+metric Llegadas = count() on arrival label "Vehículos que llegaron"
+metric ViajeTotal = sum(trip.travel_time) on arrival label "Tiempo de viaje total"
+metric ViajePromedio = average(trip.travel_time) on arrival label "Tiempo de viaje promedio"
+metric ColaMínima = minimum(queue(AB)) on tick label "Cola mínima en AB"
+metric OcupaciónMáxima = maximum(occupancy(BC)) on tick label "Ocupación máxima de BC"

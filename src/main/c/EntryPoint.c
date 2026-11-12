@@ -3,6 +3,7 @@
 #include "backend/semantic-analysis/Evaluator.h"
 #include "backend/semantic-analysis/SemanticAnalyzer.h"
 #include "backend/semantic-analysis/SymbolTable.h"
+#include "backend/semantic-analysis/TypeChecker.h"
 #include "frontend/Frontend.h"
 #include "frontend/lexical-analysis/FlexActions.h"
 #include "frontend/syntactic-analysis/BisonActions.h"
@@ -34,6 +35,7 @@ const int main(const int length, const char ** arguments) {
 		initializeModelModule(),
 		initializeSymbolTableModule(),
 		initializeEvaluatorModule(),
+		initializeTypeCheckerModule(),
 		initializeSemanticAnalyzerModule(),
 		initializeGeneratorModule()
 	};

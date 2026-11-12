@@ -62,6 +62,14 @@ struct Symbol {
 			ValueType elementType;
 			bool incomplete;
 		};
+		/**
+		 * PARAMETER_SYMBOL: its declared type, and its position in the
+		 * parameters of its policy (0 for the first one).
+		 */
+		struct {
+			ValueType parameterType;
+			unsigned int parameterIndex;
+		};
 		/** The entity of the model, for the classes of entities. */
 		Flow * flow;
 		Intersection * intersection;
@@ -92,8 +100,8 @@ struct Scope {
 };
 
 /**
- * A stack of scopes: global, and one more for each "for" being unrolled (and,
- * from step 4 on, for the parameters of a policy).
+ * A stack of scopes (spec-v3 §3.2): global, one more for each "for" being
+ * unrolled, and one for the parameters of the policy being analyzed.
  */
 struct SymbolTable {
 	Scope * global;

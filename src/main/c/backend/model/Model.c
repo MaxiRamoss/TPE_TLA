@@ -57,6 +57,25 @@ Model * createModel() {
 	return calloc(1, sizeof(Model));
 }
 
+const char * aggregatorName(const Aggregator aggregator) {
+	switch (aggregator) {
+		case AVERAGE_AGGREGATOR: return "average";
+		case COUNT_AGGREGATOR: return "count";
+		case MAXIMUM_AGGREGATOR: return "maximum";
+		case MINIMUM_AGGREGATOR: return "minimum";
+		case SUM_AGGREGATOR: return "sum";
+		default: return "?";
+	}
+}
+
+const char * eventName(const Event event) {
+	switch (event) {
+		case ARRIVAL_EVENT: return "arrival";
+		case TICK_EVENT: return "tick";
+		default: return "?";
+	}
+}
+
 void addFlow(Model * model, Flow * flow) {
 	model->flows = _ensureCapacity(model->flows, model->flowCount, &model->flowCapacity);
 	model->flows[model->flowCount++] = flow;
@@ -276,7 +295,8 @@ void logModel(const Model * model) {
 	for (unsigned int k = 0; k < model->metricCount; ++k) {
 		const Metric * metric = model->metrics[k];
 		label = _labelOrEmpty(metric->label);
-		logDebugging(_logger, "Metric \"%s\"%s (line %d)", metric->id, label, metric->line);
+		logDebugging(_logger, "Metric \"%s\"%s (line %d): %s on %s, unit %s, instance %u", metric->id, label, metric->line,
+			aggregatorName(metric->aggregator), eventName(metric->event), metric->unit != NULL ? metric->unit : "none", metric->instance);
 		free(label);
 	}
 }

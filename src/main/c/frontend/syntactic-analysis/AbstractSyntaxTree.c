@@ -388,7 +388,30 @@ void destroyReference(Reference * reference) {
 	if (reference != NULL) {
 		free(reference->identifier);
 		destroyExpression(reference->index);
+		for (unsigned int k = 0; k < reference->resolutionCount; ++k) {
+			destroyResolution(&reference->resolutions[k]);
+		}
+		free(reference->resolutions);
 		free(reference);
+	}
+}
+
+void destroyResolution(Resolution * resolution) {
+	logDebugging(_logger, "Executing destructor: %s", __FUNCTION__);
+	if (resolution != NULL) {
+		switch (resolution->type) {
+			case CONSTANT_RESOLUTION:
+			case LOOP_VARIABLE_RESOLUTION:
+				if (resolution->valueType == STRING_VALUE_TYPE) {
+					free(resolution->string);
+				}
+				break;
+			case ENTITY_RESOLUTION:
+				free(resolution->identifier);
+				break;
+			default:
+				break;
+		}
 	}
 }
 

@@ -1,6 +1,7 @@
 #include "SemanticAnalyzer.h"
 #include "Evaluator.h"
 #include "SymbolTable.h"
+#include "TypeChecker.h"
 
 /* MODULE INTERNAL STATE */
 
@@ -44,6 +45,7 @@ ModuleDestructor initializeSemanticAnalyzerModule() {
 
 /* PRIVATE FUNCTIONS */
 
+static void _analyzeAggregator(Call * call, const ExecutionContext context, Metric * metric, const char * owner);
 static void _analyzeConstant(const ConstantDeclaration * declaration, const int line);
 static void _analyzeDeclaration(const Declaration * declaration);
 static void _analyzeDeclarations(const Declarations * declarations);
@@ -51,24 +53,26 @@ static void _analyzeFlow(const FlowDeclaration * declaration, const int line);
 static void _analyzeFor(const ForDeclaration * declaration, const int line);
 static void _analyzeIntersection(const IntersectionDeclaration * declaration, const int line);
 static void _analyzeLight(const LightDeclaration * declaration, const int line);
-static void _analyzeMetric(const MetricDeclaration * declaration, const int line);
-static void _analyzePolicy(const PolicyDeclaration * declaration, const int line);
+static void _analyzeMetric(MetricDeclaration * declaration, const int line);
+static void _analyzePolicy(PolicyDeclaration * declaration, const int line);
 static bool _analyzePosition(const Position * position, Intersection * intersection, const char * owner);
 static void _analyzeRoad(const RoadDeclaration * declaration, const int line);
 static void _analyzeRoute(const RouteDeclaration * declaration, const int line);
 static void _analyzeSimulation(const Simulation * simulation);
 static int _cells(const int length);
+static void _checkApplication(const PolicyApplication * application, const Call * call, const char * owner);
 static bool _checkArrayElement(const Symbol * base, const char * subject, const SymbolClass symbolClass, const ValueType type, const int line);
 static bool _checkUndeclared(const char * name, const int line);
 static Symbol * _declare(const Reference * reference, const char * name, const SymbolClass symbolClass, const ValueType type, const int line);
+static void _declareParameter(const Parameter * parameter, const unsigned int index, const char * owner, const int line);
 static char * _describe(const SymbolClass symbolClass, const char * name, const Reference * reference);
 static void _destroyReportedErrors();
 static bool _enables(const Light * light, const Road * road);
 static bool _euclideanDistance(const Intersection * from, const Intersection * to, int * distance);
-static Value * _evaluateField(const Expression * expression, const ValueType expected, const char * field, const char * owner);
-static bool _evaluateInteger(const Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer);
-static char * _evaluateLabel(const Expression * label, const char * owner);
-static bool _evaluatePositive(const Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer);
+static Value * _evaluateField(Expression * expression, const ValueType expected, const char * field, const char * owner);
+static bool _evaluateInteger(Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer);
+static char * _evaluateLabel(Expression * label, const char * owner);
+static bool _evaluatePositive(Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer);
 static char * _formatMagnitude(const ValueType type, const int integer);
 static char * _kindName(const SymbolClass symbolClass, const ValueType type, const bool plural);
 static char * _resolveDeclaredName(const Reference * reference, const SymbolClass symbolClass, const ValueType type, const int line);
@@ -76,6 +80,7 @@ static Road * _resolveLeg(const Route * route, const Intersection * from, const 
 static void _resolveRoutes();
 static char * _roadNames(const Intersection * from, const Intersection * to, const unsigned int count);
 static unsigned long long _squareRoot(const unsigned long long number);
+static const char * _unitOfType(const ValueType type);
 static void _validateIncomingRoads(const Light * light);
 static void _validateLights();
 static void _validatePhases(const Light * light);
@@ -85,6 +90,55 @@ static ValueType _valueTypeOfParameterType(const ParameterType type);
 
 /** The default speed limit of a road (spec-v3 D12): 40 km/h, in m/h. */
 static const int _defaultLimit = 40000;
+
+/**
+ * Analyzes the aggregator of a metric (V17): its name, and its arguments,
+ * which are checked in the context of the event of the metric. "count" has
+ * no arguments, and the others have one, an integer or a magnitude, which
+ * defines the unit of the result. An unknown aggregator has its arguments
+ * checked anyway, to report their own errors.
+ */
+static void _analyzeAggregator(Call * call, const ExecutionContext context, Metric * metric, const char * owner) {
+	bool known = false;
+	for (Aggregator aggregator = AVERAGE_AGGREGATOR; aggregator <= SUM_AGGREGATOR; ++aggregator) {
+		if (strcmp(call->identifier, aggregatorName(aggregator)) == 0) {
+			metric->aggregator = aggregator;
+			known = true;
+		}
+	}
+	if (!known) {
+		semanticError(call->line, "%s uses unknown aggregator \"%s\": the aggregators are \"count\", \"sum\", \"average\", \"minimum\" and \"maximum\"",
+			owner, call->identifier);
+	}
+	unsigned int count = 0;
+	ValueType type = ERROR_VALUE_TYPE;
+	for (Argument * argument = call->arguments->first; argument != NULL; argument = argument->next) {
+		const ValueType argumentType = checkExpression(_symbolTable, argument->expression, context, owner);
+		if (count++ == 0) {
+			type = argumentType;
+			metric->argument = argument->expression;
+		}
+	}
+	if (!known) {
+		return;
+	}
+	if (metric->aggregator == COUNT_AGGREGATOR) {
+		if (count != 0) {
+			semanticError(call->line, "aggregator \"count\" of %s takes no arguments, but it receives %u", owner, count);
+		}
+		metric->argument = NULL;
+	}
+	else if (count != 1) {
+		semanticError(call->line, "aggregator \"%s\" of %s takes 1 argument, but it receives %u", call->identifier, owner, count);
+	}
+	else if (type != ERROR_VALUE_TYPE && type != INTEGER_VALUE_TYPE && !isMagnitudeType(type)) {
+		semanticError(metric->argument->line, "the argument of aggregator \"%s\" of %s must be an integer or a magnitude, but it is %s",
+			call->identifier, owner, valueTypeNameWithArticle(type));
+	}
+	else {
+		metric->unit = _unitOfType(type);
+	}
+}
 
 /**
  * Analyzes a constant: its value is folded, and its type must be the declared
@@ -250,8 +304,8 @@ static void _analyzeIntersection(const IntersectionDeclaration * declaration, co
 /**
  * Analyzes a light: its intersection, the roads and the duration of each
  * phase (which must be positive, V07), and the policy of each "apply" with
- * its arguments (their arity and types are checked in step 4). The relation
- * between its phases and its intersection is validated later, on the model.
+ * its arguments, which must match its parameters (V14). The relation between
+ * its phases and its intersection is validated later, on the model.
  */
 static void _analyzeLight(const LightDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, LIGHT_SYMBOL, ERROR_VALUE_TYPE, line);
@@ -312,6 +366,9 @@ static void _analyzeLight(const LightDeclaration * declaration, const int line) 
 			for (const Argument * argument = item->call->arguments->first; argument != NULL; argument = argument->next) {
 				application->arguments[argumentIndex++] = evaluateExpression(_symbolTable, argument->expression, owner);
 			}
+			if (application->policy != NULL) {
+				_checkApplication(application, item->call, owner);
+			}
 		}
 	}
 	Symbol * symbol = name != NULL ? _declare(declaration->reference, name, LIGHT_SYMBOL, ERROR_VALUE_TYPE, line) : NULL;
@@ -328,16 +385,31 @@ static void _analyzeLight(const LightDeclaration * declaration, const int line) 
 }
 
 /**
- * Registers a metric and its label. Its aggregator and its event are analyzed
- * in step 4.
+ * Analyzes a metric: its event must be "tick" or "arrival" (V18), and its
+ * aggregator is analyzed in the context of that event (spec-v3 §3.5). With
+ * an unknown event, the context is "arrival", the most permissive one, so it
+ * produces no more errors. Each analysis of the declaration is a new
+ * instance (spec-v3 §3.3).
  */
-static void _analyzeMetric(const MetricDeclaration * declaration, const int line) {
+static void _analyzeMetric(MetricDeclaration * declaration, const int line) {
 	char * name = _resolveDeclaredName(declaration->reference, METRIC_SYMBOL, ERROR_VALUE_TYPE, line);
 	char * owner = _describe(METRIC_SYMBOL, name, declaration->reference);
 	Metric * metric = calloc(1, sizeof(Metric));
 	metric->line = line;
 	metric->declaration = declaration;
+	metric->instance = declaration->instanceCount++;
 	metric->label = _evaluateLabel(declaration->label, owner);
+	if (strcmp(declaration->event, eventName(TICK_EVENT)) == 0) {
+		metric->event = TICK_EVENT;
+	}
+	else if (strcmp(declaration->event, eventName(ARRIVAL_EVENT)) == 0) {
+		metric->event = ARRIVAL_EVENT;
+	}
+	else {
+		semanticError(line, "%s has unknown event \"%s\": the events are \"tick\" and \"arrival\"", owner, declaration->event);
+		metric->event = ARRIVAL_EVENT;
+	}
+	_analyzeAggregator(declaration->aggregator, metric->event == TICK_EVENT ? TICK_CONTEXT : ARRIVAL_CONTEXT, metric, owner);
 	Symbol * symbol = name != NULL ? _declare(declaration->reference, name, METRIC_SYMBOL, ERROR_VALUE_TYPE, line) : NULL;
 	if (symbol != NULL) {
 		metric->id = name;
@@ -352,10 +424,13 @@ static void _analyzeMetric(const MetricDeclaration * declaration, const int line
 }
 
 /**
- * Registers a policy and the types of its parameters. Its body (and the scope
- * of its parameters) is analyzed in step 4.
+ * Analyzes a policy (spec-v3 §3.2): its name is declared first, so it is
+ * visible from its body. Its parameters are declared in a new scope, from
+ * which its body sees them and the global symbols declared before it (D13).
+ * Its body is checked even if the policy is never applied.
  */
-static void _analyzePolicy(const PolicyDeclaration * declaration, const int line) {
+static void _analyzePolicy(PolicyDeclaration * declaration, const int line) {
+	char * owner = describeSymbol(POLICY_SYMBOL, declaration->identifier);
 	Policy * policy = calloc(1, sizeof(Policy));
 	policy->line = line;
 	policy->declaration = declaration;
@@ -363,14 +438,18 @@ static void _analyzePolicy(const PolicyDeclaration * declaration, const int line
 		++policy->parameterCount;
 	}
 	policy->parameterTypes = calloc(policy->parameterCount, sizeof(ValueType));
-	unsigned int parameterIndex = 0;
-	for (const Parameter * parameter = declaration->parameters->first; parameter != NULL; parameter = parameter->next) {
-		policy->parameterTypes[parameterIndex++] = _valueTypeOfParameterType(parameter->type);
-	}
 	Symbol * symbol = NULL;
 	if (_checkUndeclared(declaration->identifier, line)) {
 		symbol = declareGlobalSymbol(_symbolTable, declaration->identifier, POLICY_SYMBOL, line);
 	}
+	pushScope(_symbolTable);
+	unsigned int parameterIndex = 0;
+	for (const Parameter * parameter = declaration->parameters->first; parameter != NULL; parameter = parameter->next) {
+		policy->parameterTypes[parameterIndex] = _valueTypeOfParameterType(parameter->type);
+		_declareParameter(parameter, parameterIndex++, owner, line);
+	}
+	checkBlock(_symbolTable, declaration->block, owner);
+	popScope(_symbolTable);
 	if (symbol != NULL) {
 		policy->id = concatenate(1, declaration->identifier);
 		symbol->policy = policy;
@@ -379,6 +458,7 @@ static void _analyzePolicy(const PolicyDeclaration * declaration, const int line
 	else {
 		destroyPolicy(policy);
 	}
+	free(owner);
 }
 
 /**
@@ -521,6 +601,32 @@ static int _cells(const int length) {
 }
 
 /**
+ * Checks the arguments of an "apply" against the parameters of its policy
+ * (V14): their number, and the type of each one, which must be the type of
+ * its parameter (for an entity, its class). An argument with an error
+ * produces no more errors.
+ */
+static void _checkApplication(const PolicyApplication * application, const Call * call, const char * owner) {
+	const Policy * policy = application->policy;
+	if (application->argumentCount != policy->parameterCount) {
+		semanticError(call->line, "%s applies policy \"%s\" with %u argument%s, but it takes %u",
+			owner, policy->id, application->argumentCount, application->argumentCount == 1 ? "" : "s", policy->parameterCount);
+	}
+	const Argument * argument = call->arguments->first;
+	const Parameter * parameter = policy->declaration->parameters->first;
+	for (unsigned int k = 0; argument != NULL && parameter != NULL; ++k) {
+		const ValueType type = application->arguments[k]->type;
+		const ValueType expected = policy->parameterTypes[k];
+		if (type != ERROR_VALUE_TYPE && type != expected) {
+			semanticError(argument->expression->line, "the argument for parameter \"%s\" of policy \"%s\" in %s must be %s, but it is %s",
+				parameter->identifier, policy->id, owner, valueTypeNameWithArticle(expected), valueTypeNameWithArticle(type));
+		}
+		argument = argument->next;
+		parameter = parameter->next;
+	}
+}
+
+/**
  * Checks that a new element of an array has the same class as the others
  * and, if it is a constant, the same type (V03). The subject describes the
  * element (e.g., '"X[1]"').
@@ -598,6 +704,26 @@ static Symbol * _declare(const Reference * reference, const char * name, const S
 }
 
 /**
+ * Declares a parameter of a policy in the innermost scope, with its type and
+ * its position. A parameter whose name is already a parameter of the same
+ * policy is a duplicate (V01), and the first one stays. A parameter with the
+ * name of a builtin or of a visible symbol is a duplicate too (V01, there is
+ * no shadowing), but it is declared anyway, so the body is checked against
+ * its declared type without more errors.
+ */
+static void _declareParameter(const Parameter * parameter, const unsigned int index, const char * owner, const int line) {
+	const Symbol * visible = lookupSymbol(_symbolTable, parameter->identifier);
+	if (visible != NULL && visible->symbolClass == PARAMETER_SYMBOL) {
+		semanticError(line, "%s has more than one parameter named \"%s\"", owner, parameter->identifier);
+		return;
+	}
+	_checkUndeclared(parameter->identifier, line);
+	Symbol * symbol = declareLocalSymbol(_symbolTable, parameter->identifier, PARAMETER_SYMBOL, line);
+	symbol->parameterType = _valueTypeOfParameterType(parameter->type);
+	symbol->parameterIndex = index;
+}
+
+/**
  * Describes the declaration being analyzed (e.g., 'road "Tramo[5]"'), using
  * its base name if its index failed.
  */
@@ -660,7 +786,7 @@ static bool _euclideanDistance(const Intersection * from, const Intersection * t
  * field describes it in the message (e.g., "the length of"). Returns NULL if
  * it has an error.
  */
-static Value * _evaluateField(const Expression * expression, const ValueType expected, const char * field, const char * owner) {
+static Value * _evaluateField(Expression * expression, const ValueType expected, const char * field, const char * owner) {
 	Value * value = evaluateExpression(_symbolTable, expression, owner);
 	if (value->type == expected) {
 		return value;
@@ -677,7 +803,7 @@ static Value * _evaluateField(const Expression * expression, const ValueType exp
  * Evaluates an integer or a magnitude of the expected type (V04). Returns
  * false if it has an error, without changing the integer.
  */
-static bool _evaluateInteger(const Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer) {
+static bool _evaluateInteger(Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer) {
 	Value * value = _evaluateField(expression, expected, field, owner);
 	if (value == NULL) {
 		return false;
@@ -691,7 +817,7 @@ static bool _evaluateInteger(const Expression * expression, const ValueType expe
  * Evaluates a label, which must be a string (V04). Returns NULL if there is
  * no label, or if it has an error.
  */
-static char * _evaluateLabel(const Expression * label, const char * owner) {
+static char * _evaluateLabel(Expression * label, const char * owner) {
 	if (label == NULL) {
 		return NULL;
 	}
@@ -709,7 +835,7 @@ static char * _evaluateLabel(const Expression * label, const char * owner) {
  * be positive (V07). Returns false if it has an error, or if it is not
  * positive.
  */
-static bool _evaluatePositive(const Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer) {
+static bool _evaluatePositive(Expression * expression, const ValueType expected, const char * field, const char * owner, int * integer) {
 	Value * value = _evaluateField(expression, expected, field, owner);
 	if (value == NULL) {
 		return false;
@@ -889,6 +1015,19 @@ static unsigned long long _squareRoot(const unsigned long long number) {
 }
 
 /**
+ * The unit of the result of a metric whose argument has that type: "s", "m"
+ * or "km/h" for a magnitude, and NULL for an integer.
+ */
+static const char * _unitOfType(const ValueType type) {
+	switch (type) {
+		case DISTANCE_VALUE_TYPE: return "m";
+		case DURATION_VALUE_TYPE: return "s";
+		case SPEED_VALUE_TYPE: return "km/h";
+		default: return NULL;
+	}
+}
+
+/**
  * Every road that enters the intersection of a light must be enabled by some
  * of its phases (V12), with an error for each missing road. If a phase has a
  * road that could not be resolved, it could be any of them, so the light is
@@ -1020,6 +1159,7 @@ CompilationStatus executeSemanticAnalysis(CompilerState * compilerState) {
 		return FAILED;
 	}
 	logModel(_model);
+	logAnnotations(_model);
 	compilerState->model = _model;
 	_model = NULL;
 	return SUCCEEDED;

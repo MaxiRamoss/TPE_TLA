@@ -31,8 +31,6 @@ static Value * _evaluateString(SymbolTable * symbolTable, const StringLiteral * 
 static Value * _evaluateUnary(SymbolTable * symbolTable, const Expression * expression, const char * owner);
 static Value * _fold(const Expression * expression, const ValueType type, const Value * left, const Value * right, const char * owner);
 static char * _interpolate(const SymbolTable * symbolTable, const Value * value);
-static bool _isAggregator(const char * identifier);
-static bool _isBuiltinReference(const SymbolTable * symbolTable, const Factor * factor, const char * identifier);
 static Value * _overflow(const Expression * expression, const char * owner);
 
 /**
@@ -94,7 +92,7 @@ static Value * _evaluateCall(SymbolTable * symbolTable, const Call * call, const
 	else if (symbol->symbolClass == POLICY_SYMBOL) {
 		semanticError(call->line, "%s uses policy \"%s\" as an expression", owner, call->identifier);
 	}
-	else if (symbol->symbolClass == BUILTIN_SYMBOL && _isAggregator(call->identifier)) {
+	else if (symbol->symbolClass == BUILTIN_SYMBOL && isAggregator(call->identifier)) {
 		semanticError(call->line, "%s uses aggregator \"%s\" outside a metric", owner, call->identifier);
 	}
 	else if (symbol->symbolClass == BUILTIN_SYMBOL && (strcmp(call->identifier, "queue") == 0 || strcmp(call->identifier, "occupancy") == 0)) {
@@ -139,7 +137,7 @@ static Value * _evaluateFactor(SymbolTable * symbolTable, const Factor * factor,
  * other member is unknown (V16).
  */
 static Value * _evaluateMember(SymbolTable * symbolTable, const Factor * factor, const char * owner) {
-	if (_isBuiltinReference(symbolTable, factor->factor, "trip")) {
+	if (isBuiltinReference(symbolTable, factor->factor, "trip")) {
 		if (strcmp(factor->member, "travel_time") == 0) {
 			semanticError(factor->line, "%s uses builtin \"trip\", which is not available at compile time", owner);
 		}
@@ -185,7 +183,9 @@ static Value * _evaluateQuantity(const Factor * factor, const char * owner) {
 /**
  * Evaluates a reference: a constant or a loop variable folds to its value,
  * and an entity to its resolved identifier. A builtin is out of its context
- * at compile time (V06).
+ * at compile time (V06). A parameter of a policy is only known at run time,
+ * so it cannot be used where a value is needed at compile time, such as an
+ * index (spec-v3 §3.3).
  */
 static Value * _evaluateReference(SymbolTable * symbolTable, const Reference * reference, const char * owner) {
 	const Symbol * symbol = resolveReference(symbolTable, reference, owner, "identifier");
@@ -198,6 +198,9 @@ static Value * _evaluateReference(SymbolTable * symbolTable, const Reference * r
 			return copyValue(symbol->value);
 		case BUILTIN_SYMBOL:
 			semanticError(reference->line, "%s uses builtin \"%s\", which is not available at compile time", owner, symbol->name);
+			return createErrorValue();
+		case PARAMETER_SYMBOL:
+			semanticError(reference->line, "%s uses parameter \"%s\" where a value known at compile time is needed", owner, symbol->name);
 			return createErrorValue();
 		default:
 			return createEntityValue(symbolClassValueType(symbol->symbolClass), symbol->name);
@@ -330,28 +333,6 @@ static char * _interpolate(const SymbolTable * symbolTable, const Value * value)
 	return formatValue(value, label);
 }
 
-static bool _isAggregator(const char * identifier) {
-	return strcmp(identifier, "count") == 0
-		|| strcmp(identifier, "sum") == 0
-		|| strcmp(identifier, "average") == 0
-		|| strcmp(identifier, "minimum") == 0
-		|| strcmp(identifier, "maximum") == 0;
-}
-
-/**
- * True if the factor is a plain reference to that builtin (e.g., "trip").
- */
-static bool _isBuiltinReference(const SymbolTable * symbolTable, const Factor * factor, const char * identifier) {
-	if (factor->type != REFERENCE_FACTOR || factor->reference->index != NULL) {
-		return false;
-	}
-	if (strcmp(factor->reference->identifier, identifier) != 0) {
-		return false;
-	}
-	const Symbol * symbol = lookupSymbol(symbolTable, identifier);
-	return symbol != NULL && symbol->symbolClass == BUILTIN_SYMBOL;
-}
-
 /**
  * Reports an overflow of an operation (V05).
  */
@@ -402,6 +383,25 @@ ValueType unaryOperationType(const ExpressionType operation, const ValueType ope
 	}
 }
 
+bool isAggregator(const char * identifier) {
+	return strcmp(identifier, "count") == 0
+		|| strcmp(identifier, "sum") == 0
+		|| strcmp(identifier, "average") == 0
+		|| strcmp(identifier, "minimum") == 0
+		|| strcmp(identifier, "maximum") == 0;
+}
+
+bool isBuiltinReference(const SymbolTable * symbolTable, const Factor * factor, const char * identifier) {
+	if (factor->type != REFERENCE_FACTOR || factor->reference->index != NULL) {
+		return false;
+	}
+	if (strcmp(factor->reference->identifier, identifier) != 0) {
+		return false;
+	}
+	const Symbol * symbol = lookupSymbol(symbolTable, identifier);
+	return symbol != NULL && symbol->symbolClass == BUILTIN_SYMBOL;
+}
+
 const char * operationSymbol(const ExpressionType operation) {
 	switch (operation) {
 		case ADDITION: return "+";
@@ -422,16 +422,22 @@ const char * operationSymbol(const ExpressionType operation) {
 	}
 }
 
-Value * evaluateExpression(SymbolTable * symbolTable, const Expression * expression, const char * owner) {
+Value * evaluateExpression(SymbolTable * symbolTable, Expression * expression, const char * owner) {
+	Value * value = NULL;
 	switch (expression->type) {
 		case FACTOR:
-			return _evaluateFactor(symbolTable, expression->factor, owner);
+			value = _evaluateFactor(symbolTable, expression->factor, owner);
+			break;
 		case ARITHMETIC_NEGATION:
 		case LOGICAL_NEGATION:
-			return _evaluateUnary(symbolTable, expression, owner);
+			value = _evaluateUnary(symbolTable, expression, owner);
+			break;
 		default:
-			return _evaluateBinary(symbolTable, expression, owner);
+			value = _evaluateBinary(symbolTable, expression, owner);
+			break;
 	}
+	expression->staticType = value->type;
+	return value;
 }
 
 bool evaluateIndex(SymbolTable * symbolTable, const Reference * reference, const char * owner, int * index) {
