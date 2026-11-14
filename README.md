@@ -162,7 +162,7 @@ Cada símbolo se declara antes de usarse, y no hay shadowing. Las reglas que se 
 * Agregador desconocido, o con una cantidad o un tipo de argumentos incorrectos.
 * Evento desconocido: los únicos son `tick` y `arrival`.
 
-No son errores: una policy que no se aplica, un parámetro sin usar, una intersección aislada y un `extend` sobre una calle que la fase vigente no habilita (no tiene efecto). Una ventana de flujo que termina después de la simulación se trunca.
+No son errores: una policy que no se aplica, un parámetro sin usar, una intersección aislada y un `extend` sobre una calle que la fase vigente no habilita (no tiene efecto). Una ventana de flujo que termina después de la simulación se trunca. Un `for` cuyo límite inferior supera al superior no declara nada.
 
 ## Salida generada
 
